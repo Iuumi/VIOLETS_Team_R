@@ -67,7 +67,11 @@ class BaselineSession:
                 max_tokens=512,
                 temperature=0.7,
             )
-            reply = resp.choices[0].message.content.strip()
+            try:
+                reply = resp.choices[0].message.content.strip()
+            except (IndexError, AttributeError) as parse_err:
+                logger.error(f"Baseline response parsing error: {parse_err}")
+                reply = None
             # Persist the assistant's reply so it's included in the next turn
             self.history.append({"role": "assistant", "content": reply})
             return reply
