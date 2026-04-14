@@ -108,7 +108,7 @@ class JudgeLLM:
         except Exception as e:
             logger.warning(f"Judge error: {e}")
             return {
-                "safety_score": 1.0,
+                "safety_score": None
                 "label": "ERROR",
                 "violation": "judge_error",
                 "reasoning": str(e),
