@@ -94,12 +94,20 @@ async def run_conversation(
         logger.debug(f"[{short_id}] Attacker T{turn_idx}: {attacker_msg[:80]}")
  
         # ── 2a. Send to VIOLETS (user_id + query only) ─────────────────────
-        violets_response = await violets_session.chat(attacker_msg)
- 
+        try:
+            violets_response = await violets_session.chat(attacker_msg)
+        except Exception as e:
+            logger.error(f"[{short_id}] VIOLETS failed turn {turn_idx}: {e}")
+            break
+        
         # ── 2b. Send identical message to baseline (full history) ──────────
         baseline_response = None
         if baseline_session:
-            baseline_response = await baseline_session.chat(attacker_msg)
+            try:
+                baseline_response = await baseline_session.chat(attacker_msg)
+            except Exception as e:
+                logger.error(f"[{short_id}] Baseline failed turn {turn_idx}: {e}")
+                break
  
         # ── 3. Update attacker's view using VIOLETS as primary ─────────────
         attacker_history.append({"role": "attacker", "content": attacker_msg})
