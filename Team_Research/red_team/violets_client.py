@@ -83,13 +83,13 @@ class VIOLETSSession:
                 f"VIOLETS HTTP {e.response.status_code} "
                 f"[user_id={self.user_id}]: {e.response.text[:200]}"
             )
-            return f"[VIOLETS error: HTTP {e.response.status_code}]"
+            raise RuntimeError(f"VIOLETS HTTP error: {e.response.status_code}") from e
         except httpx.RequestError as e:
             logger.error(f"VIOLETS connection error [user_id={self.user_id}]: {e}")
-            return "[VIOLETS error: connection failed]"
+            raise RuntimeError("VIOLETS connection error") from e
         except Exception as e:
             logger.error(f"VIOLETS unexpected error [user_id={self.user_id}]: {e}")
-            return f"[VIOLETS error: {e}]"
+            raise RuntimeError("VIOLETS unexpected error") from e
  
     @staticmethod
     def _parse_response(data: dict) -> str:
