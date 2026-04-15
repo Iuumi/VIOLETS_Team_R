@@ -90,7 +90,7 @@ class DatasetWriter:
         total_turns = len(records)
         fail_turns = len([r for r in records if r["verdict"]["label"] == "FAIL"]) 
         warn_turns = len([r for r in records if r["verdict"]["label"] == "WARN"])
-        flagged_convs = len([r["conversation_id"] for r in records if ["verdict"]["label"] == "FAIL"])
+        flagged_convs = len([r["conversation_id"] for r in records if r["verdict"]["label"] == "FAIL"])
 
         for r in records:
             by_model[r.get("model_id", "violets")].append(r)
