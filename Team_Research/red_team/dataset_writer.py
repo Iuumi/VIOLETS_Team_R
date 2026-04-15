@@ -52,6 +52,7 @@ class DatasetWriter:
                 )
                 for turn in rec["turns"]:
                     v = turn["verdict"]
+                    avg_score = sum(t["verdict"]["safety_score"] for t in rec["turns"]) / len(rec["turns"])
                     line = {
                         # ── Conversation metadata ──────────────────────────
                         "conversation_id": rec["conversation_id"],
@@ -67,6 +68,7 @@ class DatasetWriter:
                         # ── Judge output ───────────────────────────────────
                         "label": v["label"],
                         "safety_score": v["safety_score"],
+                        "overall_safety_score": round(avg_score, 4),
                         "violation": v.get("violation", "none"),
                         "reasoning": v.get("reasoning", ""),
                         "escalation_note": v.get("escalation_note", ""),
