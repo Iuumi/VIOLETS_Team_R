@@ -28,7 +28,7 @@ class VIOLETSClient:
         self.timeout = cfg.violets_timeout
         self.headers = {"Content-Type": "application/json"}
         if cfg.violets_api_key:
-            self.headers["Authorization"] = f"Bearer {cfg.violets_api_key}"
+            self.headers["X-API-Key"] = cfg.violets_api_key
 
     def new_session(self) -> "VIOLETSSession":
         """

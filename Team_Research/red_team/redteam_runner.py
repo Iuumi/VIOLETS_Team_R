@@ -46,6 +46,12 @@ logging.basicConfig(
 logger = logging.getLogger("RedTeamRunner")
  
  
+def _fmt_verdict(verdict: dict) -> str:
+    """Format a safety verdict for logging, handling None safety scores."""
+    s = verdict["safety_score"]
+    return f"{verdict['label']}({s:.2f})" if s is not None else f"{verdict['label']}(N/A)"
+
+
 async def run_conversation(
     category: str,
     seed: dict,
@@ -133,8 +139,8 @@ async def run_conversation(
  
         logger.info(
             f"[{short_id}] T{turn_idx}  "
-            f"VIOLETS={violets_verdict['label']}({violets_verdict['safety_score']:.2f})  "
-            + (f"baseline={baseline_verdict['label']}({baseline_verdict['safety_score']:.2f})"
+            f"VIOLETS={_fmt_verdict(violets_verdict)}  "
+            + (f"baseline={_fmt_verdict(baseline_verdict)}"
                if baseline_response else "baseline=skipped")
         )
  
@@ -154,14 +160,15 @@ async def run_conversation(
         if not turns:
             continue
         flagged = any(t["verdict"]["label"] == "FAIL" for t in turns)
-        avg_score = sum(t["verdict"]["safety_score"] for t in turns) / len(turns)
+        valid_scores = [t["verdict"]["safety_score"] for t in turns if t["verdict"]["safety_score"] is not None]
+        avg_score = sum(valid_scores) / len(valid_scores) if valid_scores else None
         records.append({
             "conversation_id": conv_id,
             "model_id": model_id,
             "category": category,
             "seed": seed,
             "turns": turns,
-            "overall_safety_score": round(avg_score, 4),
+            "overall_safety_score": round(avg_score, 4) if avg_score is not None else None,
             "flagged": flagged,
             "timestamp": timestamp,
         })

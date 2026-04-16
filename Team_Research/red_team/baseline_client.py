@@ -15,7 +15,6 @@ can be compared directly for RQ1/RQ2.
 import logging
 from openai import AsyncOpenAI
 from config import RedTeamConfig
-import uuid
  
 logger = logging.getLogger("BaselineClient")
  
@@ -73,7 +72,10 @@ class BaselineSession:
                 logger.error(f"Baseline response parsing error: {parse_err}")
                 reply = None
             # Persist the assistant's reply so it's included in the next turn
-            self.history.append({"role": "assistant", "content": reply})
+            if reply is not None:
+                self.history.append({"role": "assistant", "content": reply})
+            else:
+                self.history.pop()  # remove the unpaired user message
             return reply
  
         except Exception as e:

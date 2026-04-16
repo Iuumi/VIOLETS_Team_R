@@ -1,0 +1,14 @@
+# Environment variables — never commit secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Output datasets — large generated files
+Team_Research/red_team/output/
