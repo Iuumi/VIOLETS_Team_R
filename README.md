@@ -73,7 +73,7 @@ Automated evaluation framework for VIOLETS — a RAG-based voting information ch
 | `accuracy_runner.py` | Accuracy orchestrator; mirrors `redteam_runner.py` in structure |
 | `participant_generator.py` | Generates FAQ query seeds per question-type category |
 | `participant.py` | Participant LLM; asks natural follow-up questions across turns |
-| `accuracy_judge.py` | Scores each `(query, response)` pair on a 0–100 veracity scale |
+| `accuracy_judge.py` | Scores each `(query, response)` pair on a 0–100 veracity scale; uses `gpt-5-nano` via the Responses API with `web_search` (`tool_choice="required"`) restricted to `elections.maryland.gov` and `montgomerycountymd.gov` |
 
 ### RQ2 — Safety & Red-Teaming
 | Script | Role |
