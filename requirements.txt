@@ -1,0 +1,4 @@
+# RQ1 Evaluation dependencies
+
+# Participant LLM (voter query generation) + Evaluator LLM (veracity scoring with web search)
+openai>=1.0.0
