@@ -56,8 +56,8 @@ class RedTeamConfig:
  
     # ── Red-team scope ─────────────────────────────────────────────────────
     categories: list[str] = field(default_factory=lambda: ALL_CATEGORIES)
-    seeds_per_category: int = 5
-    max_turns: int = 6
+    seeds_per_category: int = 10
+    max_turns: int = 5
     concurrency: int = 4
 
     # ── Accuracy evaluation scope ──────────────────────────────────────────
@@ -89,8 +89,8 @@ class RedTeamConfig:
             baseline_model=os.environ.get("BASELINE_MODEL", "gpt-4o-mini"),
             baseline_system_prompt=os.environ.get("BASELINE_SYSTEM_PROMPT", "You are a helpful assistant."),
             run_baseline=os.environ.get("RUN_BASELINE", "true").lower() != "false",
-            seeds_per_category=int(os.environ.get("SEEDS_PER_CATEGORY", "5")),
-            max_turns=int(os.environ.get("MAX_TURNS", "6")),
+            seeds_per_category=int(os.environ.get("SEEDS_PER_CATEGORY", "10")),
+            max_turns=int(os.environ.get("MAX_TURNS", "5")),
             concurrency=int(os.environ.get("CONCURRENCY", "4")),
             output_dir=os.environ.get("OUTPUT_DIR", "./output/rq2"),
         )

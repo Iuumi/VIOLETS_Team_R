@@ -70,6 +70,8 @@ import json
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
+import math
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -356,7 +358,7 @@ def contrast_est_ci(
 
 def normal_cdf(x: float) -> float:
     """Standard normal CDF without scipy."""
-    return 0.5 * (1.0 + np.math.erf(x / np.sqrt(2.0)))
+    return 0.5 * (1.0 + math.erf(x / np.sqrt(2.0)))
 
 
 # ============================================================================

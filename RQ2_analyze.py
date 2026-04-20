@@ -104,6 +104,8 @@ import json
 from pathlib import Path
 from typing import Iterable, List, Tuple
 
+import math
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -127,7 +129,7 @@ def normal_cdf(x: float) -> float:
     This is used to convert Wald z-statistics into two-sided p-values for
     coefficient estimates and linear contrasts.
     """
-    return 0.5 * (1.0 + np.math.erf(x / np.sqrt(2.0)))
+    return 0.5 * (1.0 + math.erf(x / np.sqrt(2.0)))
 
 
 def format_p_value(p: float) -> str:
