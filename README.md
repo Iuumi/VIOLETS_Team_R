@@ -70,18 +70,20 @@ Automated evaluation framework for VIOLETS — a RAG-based voting information ch
 ### RQ1 — Accuracy & Veracity
 | Script | Role |
 |---|---|
-| `accuracy_runner.py` | Accuracy orchestrator; mirrors `redteam_runner.py` in structure |
+| `accuracy_runner.py` | Accuracy orchestrator; parallelizes VIOLETS + baseline calls and judge scoring per turn |
 | `participant_generator.py` | Generates FAQ query seeds per question-type category |
 | `participant.py` | Participant LLM; asks natural follow-up questions across turns |
 | `accuracy_judge.py` | Scores each `(query, response)` pair on a 0–100 veracity scale; uses `gpt-5-nano` via the Responses API with `web_search` (`tool_choice="required"`) restricted to `elections.maryland.gov` and `montgomerycountymd.gov` |
+| `RQ1_analyze.py` | Mixed-effects analysis + two-panel poster figure for RQ1 results |
 
 ### RQ2 — Safety & Red-Teaming
 | Script | Role |
 |---|---|
-| `redteam_runner.py` | Main orchestrator; runs multi-turn adversarial conversations |
+| `redteam_runner.py` | Main orchestrator; parallelizes VIOLETS + baseline calls and judge scoring per turn; stops early after 3 consecutive VIOLETS refusals |
 | `seed_generator.py` | Generates adversarial opening prompts per threat category |
 | `attacker.py` | Escalating attacker LLM; adapts strategy based on VIOLETS's responses |
-| `judge.py` | Scores each `(attacker_message, response)` pair: PASS / WARN / FAIL |
+| `judge.py` | Scores each `(attacker_message, response)` pair: PASS / WARN / FAIL with numeric safety score (0–1) |
+| `RQ2_analyze.py` | Mixed-effects analysis + two-panel poster figure for RQ2 results |
 
 ---
 
@@ -111,11 +113,11 @@ ATTACKER_MODEL=gpt-4o
 JUDGE_MODEL=gpt-5-nano
 ACCURACY_JUDGE_MODEL=gpt-5-nano
 SEED_MODEL=gpt-4o-mini
-BASELINE_MODEL=gpt-4o-mini
+BASELINE_MODEL=gpt-4o-mini   # same model as VIOLETS for apples-to-apples comparison
 
 # Run settings
-SEEDS_PER_CATEGORY=5
-MAX_TURNS=6
+SEEDS_PER_CATEGORY=10        # 10 seeds × 5 categories = 50 conversations per RQ
+MAX_TURNS=5                  # up to 5 turns per conversation (≈ 2–3 exchanges)
 CONCURRENCY=4
 RUN_BASELINE=true
 OUTPUT_DIR=./output/rq2
@@ -136,6 +138,27 @@ Output: `./output/rq1/eval_dataset.jsonl`
 python redteam_runner.py
 ```
 Output: `./output/rq2/eval_dataset.jsonl`
+
+### Analysis
+
+```bash
+python RQ1_analyze.py   # reads output/rq1/eval_dataset.jsonl
+python RQ2_analyze.py   # reads output/rq2/eval_dataset.jsonl
+```
+
+Each script produces:
+
+| File | Description |
+|---|---|
+| `table1_model_overall.csv` | Overall VIOLETS vs. Baseline mixed-effects estimate |
+| `table2_category_effects.csv` | Per-category treatment effects |
+| `table3_turn_effects.csv` | Per-turn treatment effects |
+| `rq1_poster_figure.png` / `rq2_poster_figure.png` | Two-panel poster figure (Overall + By Category) |
+| `score_distribution.csv` *(RQ1)* | Veracity score distribution by bucket |
+| `flagged_for_review.csv` *(RQ1)* | VIOLETS turns scoring below 70 |
+| `passfail_by_category.csv` *(RQ2)* | Pass/warn/fail rates per threat category |
+| `passfail_by_turn.csv` *(RQ2)* | Pass/warn/fail rates per conversation turn |
+| `violation_breakdown.csv` *(RQ2)* | Violation type breakdown for VIOLETS FAIL turns |
 
 ---
 

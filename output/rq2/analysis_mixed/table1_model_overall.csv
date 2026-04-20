@@ -1,0 +1,2 @@
+effect,contrast,estimate,ci_low,ci_high,p_value,std_effect,n_rows,n_conversations
+Overall model effect,VIOLETS - Baseline,0.13705521472392582,0.09403851041118888,0.18007191903666275,4.2450021275897143e-10,0.6184646408992568,326,50

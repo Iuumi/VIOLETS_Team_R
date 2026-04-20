@@ -1,0 +1,23 @@
+                                                               Mixed Linear Model Regression Results
+====================================================================================================================================================================
+Model:                                                MixedLM                                   Dependent Variable:                                   veracity_score
+No. Observations:                                     500                                       Method:                                               ML            
+No. Groups:                                           50                                        Scale:                                                369.6021      
+Min. group size:                                      10                                        Log-Likelihood:                                       -2196.8331    
+Max. group size:                                      10                                        Converged:                                            Yes           
+Mean group size:                                      10.0                                                                                                          
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                                         Coef.  Std.Err.   z    P>|z|  [0.025 0.975]
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                                                                65.620    3.008 21.815 0.000  59.724 71.516
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                                                      7.420    3.845  1.930 0.054  -0.116 14.956
+C(category, Treatment(reference='procedural'))[T.eligibility]                                                            11.540    4.254  2.713 0.007   3.202 19.878
+C(category, Treatment(reference='procedural'))[T.mail_in]                                                                 4.480    4.254  1.053 0.292  -3.858 12.818
+C(category, Treatment(reference='procedural'))[T.results_integrity]                                                       6.160    4.254  1.448 0.148  -2.178 14.498
+C(category, Treatment(reference='procedural'))[T.edge_cases]                                                             -2.440    4.254 -0.574 0.566 -10.778  5.898
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='procedural'))[T.eligibility]       -9.660    5.438 -1.776 0.076 -20.318  0.998
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='procedural'))[T.mail_in]           -3.480    5.438 -0.640 0.522 -14.138  7.178
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='procedural'))[T.results_integrity] -2.180    5.438 -0.401 0.688 -12.838  8.478
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='procedural'))[T.edge_cases]         4.720    5.438  0.868 0.385  -5.938 15.378
+Group Var                                                                                                                16.564    0.587                            
+====================================================================================================================================================================

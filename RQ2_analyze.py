@@ -776,27 +776,27 @@ def build_combined_figure(
     title: str = "RQ2: Safety Scores — VIOLETS vs. Baseline",
 ) -> None:
     """
-    Three-panel grouped bar chart optimized for poster display:
-      (A) Overall  (B) By Category  (C) By Turn
+    Two-panel grouped bar chart optimized for poster display:
+      (A) Overall  (B) By Threat Category
 
     - Significance asterisks drawn inside each panel above bar pairs
     - Legend shown only in Panel A
     - Category labels shortened via _CAT_LABELS_RQ2
     - y-axis starts at ymin (default 0.5) so differences are visually legible
+    - Colors: Baseline = grey (#9E9E9E), VIOLETS = violet (#7B2FBE)
     """
-    COLORS = {"Baseline": "#6baed6", "VIOLETS": "#fd8d3c"}
-    FS = {"title": 15, "label": 13, "tick": 11, "legend": 11, "stars": 13}
+    COLORS = {"Baseline": "#9E9E9E", "VIOLETS": "#7B2FBE"}
+    FS = {"title": 20, "label": 17, "tick": 15, "legend": 15, "stars": 17}
     BAR_W = 0.38
-    CAP = 5
-    ERR_KW = {"elinewidth": 1.6, "ecolor": "#333333"}
+    CAP = 6
+    ERR_KW = {"elinewidth": 2.0, "ecolor": "#333333"}
     STAR_PAD = (ymax - ymin) * 0.03
 
     overall_desc = _desc_stats(df, "model", outcome).set_index("model")
     cat_desc = _desc_stats(df, "category", outcome)
-    turn_desc = _desc_stats(df, "turn_str", outcome)
 
     fig, axes = plt.subplots(
-        1, 3, figsize=(16, 5.5), gridspec_kw={"width_ratios": [1, 2.2, 1.6]}
+        1, 2, figsize=(13, 6.5), gridspec_kw={"width_ratios": [1, 2.8]}
     )
     fig.subplots_adjust(wspace=0.35)
 
@@ -868,7 +868,7 @@ def build_combined_figure(
 
         ax.set_xticks(x + BAR_W / 2)
         ax.set_xticklabels(x_labels, rotation=rotate, ha=ha, fontsize=FS["tick"])
-        ax.set_ylim(ymin, ymax)
+        ax.set_ylim(ymin, ymax + (ymax - ymin) * 0.10)
         ax.yaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
         ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
@@ -898,7 +898,7 @@ def build_combined_figure(
     ax.set_xticklabels(["Baseline", "VIOLETS"], fontsize=FS["tick"])
     ax.set_title("(A) Overall", fontsize=FS["title"], fontweight="bold")
     ax.set_ylabel(ylabel, fontsize=FS["label"])
-    ax.set_ylim(ymin, ymax)
+    ax.set_ylim(ymin, ymax + (ymax - ymin) * 0.10)
     ax.legend(fontsize=FS["legend"], framealpha=0.7)
     ax.yaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
     ax.set_axisbelow(True)
@@ -921,30 +921,14 @@ def build_combined_figure(
     )
     axes[1].set_title("(B) By Threat Category", fontsize=FS["title"], fontweight="bold")
 
-    # ── Panel C: By Turn ──────────────────────────────────────────────────
-    turns = df["turn_str"].cat.categories.tolist()
-    _bar_group(
-        axes[2],
-        turns,
-        turn_desc,
-        "turn_str",
-        [f"Turn {t}" for t in turns],
-        p_table=table3,
-        p_col="turn",
-        show_legend=False,
-    )
-    axes[2].set_title(
-        "(C) By Conversation Turn", fontsize=FS["title"], fontweight="bold"
-    )
-
-    fig.suptitle(title, fontsize=16, fontweight="bold", y=1.03)
+    fig.suptitle(title, fontsize=20, fontweight="bold", y=1.03)
     fig.text(
         0.5,
         -0.02,
         "Bars = mean ± 95% CI  |  * p < .05  ** p < .01  *** p < .001"
         "  |  p-values from linear mixed-effects model (random intercept per conversation)",
         ha="center",
-        fontsize=10,
+        fontsize=12,
         color="#555555",
     )
 
@@ -1050,7 +1034,7 @@ def run_analysis(input_path: Path, output_dir: Path) -> None:
         table1=table1,
         table2=table2,
         table3=table3,
-        output_path=output_dir / "rq2_mixed_effects_combined_figure.png",
+        output_path=output_dir / "rq2_poster_figure.png",
     )
 
     print("RQ2 mixed-effects analysis complete.")

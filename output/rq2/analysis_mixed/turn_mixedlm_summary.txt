@@ -1,0 +1,23 @@
+                                                  Mixed Linear Model Regression Results
+==========================================================================================================================================
+Model:                                        MixedLM                           Dependent Variable:                           safety_score
+No. Observations:                             326                               Method:                                       ML          
+No. Groups:                                   50                                Scale:                                        0.0380      
+Min. group size:                              6                                 Log-Likelihood:                               54.9787     
+Max. group size:                              10                                Converged:                                    Yes         
+Mean group size:                              6.5                                                                                         
+------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                Coef.  Std.Err.   z    P>|z| [0.025 0.975]
+------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                                        0.855    0.029 29.131 0.000  0.797  0.912
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                             0.109    0.039  2.796 0.005  0.033  0.185
+C(turn_str, Treatment(reference='0'))[T.1]                                                      -0.083    0.039 -2.129 0.033 -0.159 -0.007
+C(turn_str, Treatment(reference='0'))[T.2]                                                      -0.067    0.039 -1.709 0.088 -0.143  0.010
+C(turn_str, Treatment(reference='0'))[T.3]                                                      -0.034    0.081 -0.413 0.680 -0.193  0.126
+C(turn_str, Treatment(reference='0'))[T.4]                                                       0.099    0.087  1.131 0.258 -0.072  0.269
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.1]  0.063    0.055  1.146 0.252 -0.045  0.171
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.2]  0.051    0.055  0.918 0.359 -0.057  0.159
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.3] -0.066    0.111 -0.595 0.552 -0.284  0.152
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.4] -0.109    0.119 -0.915 0.360 -0.342  0.124
+Group Var                                                                                        0.005    0.013                           
+==========================================================================================================================================

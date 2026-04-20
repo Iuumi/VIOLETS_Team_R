@@ -90,28 +90,45 @@ async def run_conversation(
 
         logger.debug(f"[{short_id}] Participant T{turn_idx}: {participant_msg[:80]}")
 
-        # ── 2a. Send to VIOLETS ────────────────────────────────────────────
-        try:
-            violets_response = await violets_session.chat(participant_msg)
-        except Exception as e:
-            logger.error(f"[{short_id}] VIOLETS failed turn {turn_idx}: {e}")
-            break
+        # ── 2. Send to VIOLETS and baseline in parallel ────────────────────
+        async def _call_violets():
+            return await violets_session.chat(participant_msg)
 
-        # ── 2b. Send identical message to baseline ─────────────────────────
+        async def _call_baseline():
+            if baseline_session:
+                return await baseline_session.chat(participant_msg)
+            return None
+
+        results = await asyncio.gather(
+            _call_violets(), _call_baseline(), return_exceptions=True
+        )
+
+        if isinstance(results[0], Exception):
+            logger.error(f"[{short_id}] VIOLETS failed turn {turn_idx}: {results[0]}")
+            break
+        violets_response = results[0]
+
         baseline_response = None
-        if baseline_session:
-            try:
-                baseline_response = await baseline_session.chat(participant_msg)
-            except Exception as e:
-                logger.error(f"[{short_id}] Baseline failed turn {turn_idx}: {e}")
-                break
+        if not isinstance(results[1], Exception):
+            baseline_response = results[1]
+        elif results[1] is not None:
+            logger.error(f"[{short_id}] Baseline failed turn {turn_idx}: {results[1]}")
 
         # ── 3. Update participant history using VIOLETS as primary ─────────
         participant_history.append({"role": "participant", "content": participant_msg})
         participant_history.append({"role": "agent",       "content": violets_response})
 
-        # ── 4. Score both responses independently ──────────────────────────
-        violets_verdict = await judge.score(participant_msg, violets_response, category)
+        # ── 4. Score both responses in parallel ────────────────────────────
+        judge_tasks = [judge.score(participant_msg, violets_response, category)]
+        if baseline_response is not None:
+            judge_tasks.append(judge.score(participant_msg, baseline_response, category))
+
+        judge_results = await asyncio.gather(*judge_tasks, return_exceptions=True)
+
+        if isinstance(judge_results[0], Exception):
+            logger.error(f"[{short_id}] Judge failed (VIOLETS) turn {turn_idx}: {judge_results[0]}")
+            break
+        violets_verdict = judge_results[0]
         violets_turns.append({
             "turn": turn_idx,
             "participant_message": participant_msg,
@@ -119,20 +136,24 @@ async def run_conversation(
             "verdict": violets_verdict,
         })
 
+        baseline_verdict = None
         if baseline_response is not None:
-            baseline_verdict = await judge.score(participant_msg, baseline_response, category)
-            baseline_turns.append({
-                "turn": turn_idx,
-                "participant_message": participant_msg,
-                "agent_response": baseline_response,
-                "verdict": baseline_verdict,
-            })
+            if isinstance(judge_results[1], Exception):
+                logger.error(f"[{short_id}] Judge failed (baseline) turn {turn_idx}: {judge_results[1]}")
+            else:
+                baseline_verdict = judge_results[1]
+                baseline_turns.append({
+                    "turn": turn_idx,
+                    "participant_message": participant_msg,
+                    "agent_response": baseline_response,
+                    "verdict": baseline_verdict,
+                })
 
         logger.info(
             f"[{short_id}] T{turn_idx}  "
             f"VIOLETS={violets_verdict['veracity_score']}  "
             + (f"baseline={baseline_verdict['veracity_score']}"
-               if baseline_response else "baseline=skipped")
+               if baseline_verdict else "baseline=skipped")
         )
 
     # ── Build output records ───────────────────────────────────────────────
