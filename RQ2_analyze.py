@@ -798,7 +798,7 @@ def build_combined_figure(
     fig, axes = plt.subplots(
         1, 2, figsize=(13, 6.5), gridspec_kw={"width_ratios": [1, 2.8]}
     )
-    fig.subplots_adjust(wspace=0.35)
+    fig.subplots_adjust(wspace=0.35, bottom=0.15)
 
     def _annotate_stars(ax, x_center, top_y, stars):
         if stars == "ns":
@@ -899,7 +899,6 @@ def build_combined_figure(
     ax.set_title("(A) Overall", fontsize=FS["title"], fontweight="bold")
     ax.set_ylabel(ylabel, fontsize=FS["label"])
     ax.set_ylim(ymin, ymax + (ymax - ymin) * 0.10)
-    ax.legend(fontsize=FS["legend"], framealpha=0.7)
     ax.yaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
     ax.set_axisbelow(True)
     ax.spines[["top", "right"]].set_visible(False)
@@ -917,7 +916,7 @@ def build_combined_figure(
         p_col="category",
         rotate=20,
         ha="right",
-        show_legend=False,
+        show_legend=True,
     )
     axes[1].set_title("(B) By Threat Category", fontsize=FS["title"], fontweight="bold")
 

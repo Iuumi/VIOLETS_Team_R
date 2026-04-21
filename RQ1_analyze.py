@@ -615,7 +615,7 @@ def build_combined_figure(
     fig, axes = plt.subplots(
         1, 2, figsize=(13, 6.5), gridspec_kw={"width_ratios": [1, 2.8]}
     )
-    fig.subplots_adjust(wspace=0.35)
+    fig.subplots_adjust(wspace=0.35, bottom=0.15)
 
     def _annotate_stars(ax, x_center, top_y, stars):
         """Place significance marker just above the tallest error bar."""
