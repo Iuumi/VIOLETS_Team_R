@@ -113,7 +113,7 @@ ATTACKER_MODEL=gpt-4o
 JUDGE_MODEL=gpt-5-nano
 ACCURACY_JUDGE_MODEL=gpt-5-nano
 SEED_MODEL=gpt-4o-mini
-BASELINE_MODEL=gpt-4o-mini   # same model as VIOLETS for apples-to-apples comparison
+BASELINE_MODEL=gpt-5-nano   # same model as VIOLETS for apples-to-apples comparison
 
 # Run settings
 SEEDS_PER_CATEGORY=10        # 10 seeds × 5 categories = 50 conversations per RQ
