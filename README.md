@@ -1,9 +1,12 @@
 # VIOLETS Pre-Deployment Evaluation Pipeline
 
-Automated evaluation framework for VIOLETS — a RAG-based voting information chatbot for 2026 Maryland elections. Covers two research questions:
+Automated evaluation framework for VIOLETS — a RAG-based voting information chatbot for 2026 Maryland elections. Covers three research questions:
 
-- **RQ1 (Accuracy)** — How factually accurate are VIOLETS's responses, and does it hallucinate?
-- **RQ2 (Safety)** — Does VIOLETS correctly handle adversarial, out-of-scope, and sensitive queries?
+- **RQ1 (Accuracy)** — How factually accurate are VIOLETS's responses, and does it hallucinate? (`accuracy_runner.py`)
+- **RQ2 (Safety)** — Does VIOLETS correctly handle adversarial, out-of-scope, and sensitive queries? (`redteam_runner.py`)
+- **RQ3 (FAQ Alignment)** — How well do VIOLETS's responses align with official Maryland/Montgomery County FAQ guidance? (`q3.py`)
+
+See [Reproducing the Evaluation](#reproducing-the-evaluation) for the exact commands to run all three end to end.
 
 ---
 
@@ -52,7 +55,27 @@ Automated evaluation framework for VIOLETS — a RAG-based voting information ch
                     │     dataset_writer.py    │
                     │  output/rq1/eval_dataset.jsonl  (RQ1)
                     │  output/rq2/eval_dataset.jsonl  (RQ2)
+                    │  output/rq1/errors.jsonl        (RQ1)
+                    │  output/rq2/errors.jsonl        (RQ2)
                     └─────────────────────────┘
+```
+
+RQ1 and RQ2 share the judge-based, multi-turn architecture above. **RQ3 is a separate, simpler pipeline** (`q3.py`) that doesn't use an LLM judge, attacker/participant persona, or multi-turn escalation:
+
+```
+   data/faq_pairs.csv (id, category, question, answer)
+              │
+              ▼
+   QueryPerturber (GPT-4o-mini)  ──►  paraphrased ("GLC") variant of each question
+              │
+              ▼
+   query_violets() / query_baseline()  ──►  one-shot response per query variant
+              │
+              ▼
+   SemanticScorer  ──►  cosine similarity(response embedding, official answer embedding)
+              │
+              ▼
+   output/rq3/eval_dataset.jsonl
 ```
 
 ---
@@ -64,8 +87,8 @@ Automated evaluation framework for VIOLETS — a RAG-based voting information ch
 |---|---|
 | `config.py` | Central config dataclass; loads from environment variables |
 | `violets_client.py` | HTTP client for VIOLETS API (`POST /chat` with `user_id` + `query`) |
-| `baseline_client.py` | OpenAI client for baseline LLM; maintains full message history client-side |
-| `dataset_writer.py` | Writes JSONL output files; one line per turn |
+| `baseline_client.py` | OpenAI client for baseline LLM; maintains full message history client-side. Returns `None` on any API/parsing failure rather than fabricating a response, so the caller can skip that turn instead of judging an error string. |
+| `dataset_writer.py` | Writes JSONL output files (one line per turn) and `errors.jsonl` (one line per failed call/judge event). Supports incremental `append=True` writes so a crash mid-run doesn't lose already-completed conversations. Used by RQ1 and RQ2 only — RQ3 (`q3.py`) writes its own JSONL directly. |
 
 ### RQ1 — Accuracy & Veracity
 | Script | Role |
@@ -74,6 +97,7 @@ Automated evaluation framework for VIOLETS — a RAG-based voting information ch
 | `participant_generator.py` | Generates FAQ query seeds per question-type category |
 | `participant.py` | Participant LLM; asks natural follow-up questions across turns |
 | `accuracy_judge.py` | Scores each `(query, response)` pair on a 0–100 veracity scale; uses `gpt-5-nano` via the Responses API with `web_search` (`tool_choice="required"`) restricted to `elections.maryland.gov` and `montgomerycountymd.gov` |
+| `url_validity_judge.py` | Scores citation quality of VIOLETS's responses only — whether a URL was cited, whether it's reachable, and whether it supports the claim it's attached to |
 | `RQ1_analyze.py` | Mixed-effects analysis + two-panel poster figure for RQ1 results |
 
 ### RQ2 — Safety & Red-Teaming
@@ -84,6 +108,12 @@ Automated evaluation framework for VIOLETS — a RAG-based voting information ch
 | `attacker.py` | Escalating attacker LLM; adapts strategy based on VIOLETS's responses |
 | `judge.py` | Scores each `(attacker_message, response)` pair: PASS / WARN / FAIL with numeric safety score (0–1) |
 | `RQ2_analyze.py` | Mixed-effects analysis + two-panel poster figure for RQ2 results |
+
+### RQ3 — FAQ Alignment
+| Script | Role |
+|---|---|
+| `q3.py` | Self-contained RQ3 runner: loads FAQ pairs, optionally generates paraphrased ("GLC") query variants, queries VIOLETS + baseline, scores each response via embedding cosine similarity against the official answer, writes JSONL, and prints a summary. No separate seed/judge/analysis scripts — everything lives in this one file. |
+| `data/faq_pairs.csv` | Ground-truth FAQ pairs (`id, category, question, answer`) sourced from the Maryland State Board of Elections and Montgomery County Board of Elections FAQs. Edit this file to add or update questions. |
 
 ---
 
@@ -114,39 +144,89 @@ JUDGE_MODEL=gpt-5-nano
 ACCURACY_JUDGE_MODEL=gpt-5-nano
 SEED_MODEL=gpt-4o-mini
 BASELINE_MODEL=gpt-5-nano   # same model as VIOLETS for apples-to-apples comparison
+BASELINE_SYSTEM_PROMPT=You are a helpful assistant.   # override to match VIOLETS's real system prompt for a fair comparison
 
 # Run settings
 SEEDS_PER_CATEGORY=10        # 10 seeds × 5 categories = 50 conversations per RQ
 MAX_TURNS=5                  # up to 5 turns per conversation (≈ 2–3 exchanges)
 CONCURRENCY=4
 RUN_BASELINE=true
-OUTPUT_DIR=./output/rq2
+OUTPUT_DIR=./output/rq2      # RQ2 only — see note below
 ```
+
+**Which variables matter for which RQ:**
+
+| Variable | RQ1 (`accuracy_runner.py`) | RQ2 (`redteam_runner.py`) | RQ3 (`q3.py`) |
+|---|:---:|:---:|:---:|
+| `OPENAI_API_KEY`, `OPENAI_BASE_URL` | ✅ | ✅ | ✅ |
+| `VIOLETS_ENDPOINT`, `VIOLETS_API_KEY` | ✅ | ✅ | ✅ |
+| `BASELINE_MODEL`, `BASELINE_SYSTEM_PROMPT`, `RUN_BASELINE` | ✅ | ✅ | ✅ |
+| `ATTACKER_MODEL` | ✅ (`participant.py` follow-up questions — misleading name, it's not RQ2-specific) | ✅ (attacker follow-up probes) | — |
+| `JUDGE_MODEL` | — | ✅ | — |
+| `ACCURACY_JUDGE_MODEL` | ✅ (also used by `url_validity_judge.py`) | — | — |
+| `SEED_MODEL` | ✅ (participant generator) | ✅ (seed generator + attacker stop-check) | — |
+| `SEEDS_PER_CATEGORY`, `MAX_TURNS` | ✅ | ✅ | — (RQ3 is single-turn; see `--faq_file`/`--no-glc` flags instead) |
+| `CONCURRENCY` | ✅ | ✅ | ✅ |
+| `OUTPUT_DIR` | ❌ *ignored* — always writes to `./output/rq1` | ✅ | ❌ *ignored* — use `--output_dir` flag instead |
+
+RQ3's embedding model (`text-embedding-3-small`) and query-paraphraser model (`gpt-4o-mini`) are currently hardcoded in `q3.py` rather than environment-configurable.
 
 ---
 
-## Running
+## Reproducing the Evaluation
 
-### RQ1 — Accuracy evaluation
+Assumes Setup (above) is done: dependencies installed, `.env` configured, and VIOLETS reachable at `VIOLETS_ENDPOINT`. Each part below is independent — run whichever RQs you need, in any order.
+
+### 1. RQ1 — Accuracy evaluation
+
 ```bash
 python accuracy_runner.py
 ```
-Output: `./output/rq1/eval_dataset.jsonl`
 
-### RQ2 — Safety evaluation
+- Reads seeds from the five FAQ question-type categories (see [FAQ Question Types](#faq-question-types-rq1)), generated live by `participant_generator.py` (falls back to hardcoded seeds if generation fails).
+- Writes incrementally as each conversation finishes:
+  - `output/rq1/eval_dataset.jsonl` — one line per turn, per model (see schema below)
+  - `output/rq1/errors.jsonl` — one line per failed call/judge event, if any occurred
+- Then run the analysis:
+
+```bash
+python RQ1_analyze.py     # reads output/rq1/eval_dataset.jsonl → output/rq1/analysis_mixed/
+```
+
+### 2. RQ2 — Safety evaluation
+
 ```bash
 python redteam_runner.py
 ```
-Output: `./output/rq2/eval_dataset.jsonl`
 
-### Analysis
+- Reads seeds from the five threat categories (see [Threat Categories](#threat-categories-rq2)), generated live by `seed_generator.py` (falls back to hardcoded seeds if generation fails).
+- Writes incrementally as each conversation finishes:
+  - `output/rq2/eval_dataset.jsonl` — one line per turn, per model
+  - `output/rq2/errors.jsonl` — one line per failed call/judge event, if any occurred
+- Stops a conversation early after 3 consecutive firm VIOLETS refusals.
+- Then run the analysis:
 
 ```bash
-python RQ1_analyze.py   # reads output/rq1/eval_dataset.jsonl
-python RQ2_analyze.py   # reads output/rq2/eval_dataset.jsonl
+python RQ2_analyze.py     # reads output/rq2/eval_dataset.jsonl → output/rq2/analysis_mixed/
 ```
 
-Each script produces:
+### 3. RQ3 — FAQ alignment evaluation
+
+```bash
+python q3.py                              # default: original + GLC-paraphrased query variants
+python q3.py --no-glc                     # original queries only, skip paraphrasing
+python q3.py --faq_file path/to/file.csv  # use a different FAQ CSV (same 4 required columns)
+python q3.py --output_dir path/to/dir     # override the output location (default: output/rq3)
+```
+
+- Reads Q&A pairs from `data/faq_pairs.csv` (26 rows across 9 categories by default).
+- For each pair, queries VIOLETS and the baseline once with the original question, and once more with a GPT-4o-mini paraphrase (unless `--no-glc`), then scores each response by cosine similarity against the official answer.
+- Writes `output/rq3/eval_dataset.jsonl` once at the end of the run (unlike RQ1/RQ2, RQ3 does not write incrementally or produce an `errors.jsonl` — failures are logged to the console only).
+- There is no `RQ3_analyze.py`; `q3.py` prints a mean-similarity-per-model summary to stdout when it finishes.
+
+### Analysis output files (RQ1 / RQ2 only)
+
+`RQ1_analyze.py` and `RQ2_analyze.py` each produce:
 
 | File | Description |
 |---|---|
@@ -181,6 +261,12 @@ One line per turn, per model evaluated.
 | `veracity_score` | 0 (completely false) → 100 (completely accurate) |
 | `overall_veracity_score` | Avg veracity score across all turns in the conversation |
 | `reasoning` | One-sentence judge explanation |
+| `url_citation_rate_score` | 100 if the response cited a URL, else 0 (VIOLETS only, `null` for baseline) |
+| `url_accessibility_score` | Avg URL reachability, 0–100 (VIOLETS only, `null` for baseline) |
+| `url_accuracy_score` | Avg URL claim support, 0–100 (VIOLETS only, `null` for baseline) |
+| `url_details` | Per-URL accessibility/accuracy breakdown (VIOLETS only, `null` for baseline) |
+| `urls_found` | Raw URLs extracted from the response (VIOLETS only, `null` for baseline) |
+| `url_validity_stats` | Conversation-level citation aggregate — `pct_cited`, `pct_accessible`, `pct_accurate`, etc. (VIOLETS only, `null` for baseline) |
 | `timestamp` | ISO 8601 UTC |
 
 ### RQ2 — `output/rq2/eval_dataset.jsonl`
@@ -207,6 +293,34 @@ One line per turn, per model evaluated.
 | `conversation_flagged` | `true` if any turn in the conversation is `FAIL` |
 | `timestamp` | ISO 8601 UTC |
 
+### RQ3 — `output/rq3/eval_dataset.jsonl`
+One line per `(faq_id, query_type, model_id)` — i.e. up to 4 lines per FAQ pair (original × 2 models, GLC-perturbed × 2 models).
+
+| Field | Description |
+|---|---|
+| `faq_id` | ID from `data/faq_pairs.csv` |
+| `category` | FAQ category from `data/faq_pairs.csv` (see [FAQ Data](#faq-data-rq3) — a different taxonomy than RQ1/RQ2) |
+| `query_type` | `"original"` or `"perturbed"` (GLC paraphrase) |
+| `model_id` | `"violets"` or baseline model name |
+| `query` | The question actually sent (original or paraphrased) |
+| `official_answer` | Ground-truth answer from `data/faq_pairs.csv` |
+| `model_response` | Agent's one-shot response |
+| `similarity_score` | Cosine similarity in [0, 1] between response and official answer embeddings (`text-embedding-3-small`); `null` if the query or scoring failed |
+| `timestamp` | ISO 8601 UTC |
+
+### RQ1 / RQ2 — `output/rq{1,2}/errors.jsonl`
+One line per failed call or degraded judge event (not present for RQ3). Absent entirely if a run had zero errors.
+
+| Field | Description |
+|---|---|
+| `conversation_id` | UUID of the conversation the error occurred in, or `null` for a top-level conversation failure |
+| `category` | Question/threat category being evaluated |
+| `model_id` | `"violets"` \| baseline model name \| `null` if not model-specific |
+| `turn` | 0-indexed turn number, or `null` if not turn-specific |
+| `stage` | Where it failed: `attacker_generation` / `participant_generation`, `violets_call`, `baseline_call`, `judge_violets(_veracity\|_url)`, `judge_baseline(_veracity)`, or `conversation` |
+| `message` | Exception text or short description |
+| `timestamp` | ISO 8601 UTC |
+
 ---
 
 ## FAQ Question Types (RQ1)
@@ -229,12 +343,34 @@ One line per turn, per model evaluated.
 | `sensitive_personal` | PII requests (SSN), identity verification edge cases |
 | `political_electoral` | Partisan endorsements, political attack content, election interference |
 
+## FAQ Data (RQ3)
+
+`data/faq_pairs.csv` currently has 26 rows across 9 categories — a different taxonomy from RQ1/RQ2's question types, since it's derived directly from the structure of the official FAQ sources rather than authored per this project's taxonomy:
+
+| Category |
+|---|
+| `voter_registration` |
+| `requesting_a_ballot` |
+| `state_of_application_ballot` |
+| `ballot_documents_envelope` |
+| `marking_reviewing_ballot` |
+| `returning_ballot` |
+| `ballot_drop_boxes` |
+| `in_person_voting` |
+| `general_election` |
+
+Required columns: `id, category, question, answer`. Add rows to extend coverage — no code changes needed.
+
 ---
 
 ## Key Design Decisions
 
-- **VIOLETS is the primary agent** — the attacker/participant sees VIOLETS's responses to drive follow-up turns; the baseline runs silently in parallel
+- **VIOLETS is the primary agent** — the attacker/participant sees VIOLETS's responses to drive follow-up turns; the baseline runs silently in parallel (RQ1/RQ2)
 - **Baseline shares the same turns** — identical messages sent to both agents for direct RQ1/RQ2 comparison
-- **Judges score independently** — each response is scored on its own, not relative to the other model
-- **Bounded concurrency** — `asyncio.Semaphore(cfg.concurrency)` prevents API rate limit exhaustion
-- **Fallback seeds** — hardcoded seeds in both generators ensure runs complete even if LLM generation fails
+- **Judges score independently** — each response is scored on its own, not relative to the other model (RQ1/RQ2). RQ3 uses no LLM judge at all — alignment is measured by embedding cosine similarity against the official FAQ answer, which avoids judge-model bias but also can't explain *why* a response diverges
+- **Bounded concurrency** — `asyncio.Semaphore(cfg.concurrency)` prevents API rate limit exhaustion (all three RQs)
+- **Fallback seeds** — hardcoded seeds in both RQ1/RQ2 generators ensure runs complete even if LLM generation fails
+- **Incremental, crash-safe writes (RQ1/RQ2)** — `eval_dataset.jsonl` and `errors.jsonl` are appended to as each conversation finishes, not buffered in memory and written once at the end; a crash mid-run keeps everything completed so far. RQ3 does not yet have this — it writes once at the end of the run.
+- **A VIOLETS-side failure ends the conversation, but doesn't waste the baseline's turn** — the participant/attacker needs VIOLETS's response to drive the next turn, so a VIOLETS API failure stops that conversation; but if the baseline call for that same turn already succeeded, it's still scored and recorded rather than discarded
+- **Baseline errors are excluded, not judged** — if the baseline call fails, that turn is skipped entirely rather than having the judge score a fabricated error string as if it were real model output
+- **Errors are structured, not just logged (RQ1/RQ2)** — every dropped turn or degraded judge call is recorded to `errors.jsonl` with enough context (conversation, turn, stage) to audit how much data was lost and why, in addition to the console log line

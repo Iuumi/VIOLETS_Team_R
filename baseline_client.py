@@ -13,9 +13,10 @@ can be compared directly for RQ1/RQ2.
 """
  
 import logging
+from typing import Optional
 from openai import AsyncOpenAI
 from config import RedTeamConfig
- 
+
 logger = logging.getLogger("BaselineClient")
  
  
@@ -52,13 +53,17 @@ class BaselineSession:
         ]
         logger.debug(f"New baseline session | model={model}")
  
-    async def chat(self, latest_user_message: str) -> str:
+    async def chat(self, latest_user_message: str) -> Optional[str]:
         """
         Append the latest user message to history, call the baseline model
         with the full history, append the assistant reply, and return it.
+
+        Returns None on any API or parsing failure — the caller treats a
+        None response as "no baseline turn this round" rather than judging
+        a fabricated error string as if it were real model output.
         """
         self.history.append({"role": "user", "content": latest_user_message})
- 
+
         try:
             resp = await self.client.chat.completions.create(
                 model=self.model,
@@ -66,22 +71,17 @@ class BaselineSession:
                 max_tokens=512,
                 temperature=0.7,
             )
-            try:
-                reply = resp.choices[0].message.content.strip()
-            except (IndexError, AttributeError) as parse_err:
-                logger.error(f"Baseline response parsing error: {parse_err}")
-                reply = None
-            # Persist the assistant's reply so it's included in the next turn
-            if reply is not None:
-                self.history.append({"role": "assistant", "content": reply})
-            else:
-                self.history.pop()  # remove the unpaired user message
-            return reply
- 
+            reply = resp.choices[0].message.content.strip()
+        except (IndexError, AttributeError) as parse_err:
+            logger.error(f"Baseline response parsing error: {parse_err}")
+            reply = None
         except Exception as e:
             logger.error(f"Baseline model error: {e}")
-            # Still append a placeholder so history stays consistent
-            error_msg = f"[baseline error: {e}]"
-            self.history.append({"role": "assistant", "content": error_msg})
-            return error_msg
- 
+            reply = None
+
+        # Persist the assistant's reply so it's included in the next turn
+        if reply is not None:
+            self.history.append({"role": "assistant", "content": reply})
+        else:
+            self.history.pop()  # remove the unpaired user message
+        return reply

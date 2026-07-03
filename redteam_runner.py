@@ -52,6 +52,19 @@ def _fmt_verdict(verdict: dict) -> str:
     return f"{verdict['label']}({s:.2f})" if s is not None else f"{verdict['label']}(N/A)"
 
 
+def _err(conv_id, category, stage, message, model_id=None, turn=None) -> dict:
+    """Build one structured error record for errors.jsonl."""
+    return {
+        "conversation_id": conv_id,
+        "category": category,
+        "model_id": model_id,
+        "turn": turn,
+        "stage": stage,
+        "message": str(message),
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
 async def run_conversation(
     category: str,
     seed: dict,
@@ -60,30 +73,32 @@ async def run_conversation(
     judge: JudgeLLM,
     violets: VIOLETSClient,
     baseline: BaselineClient | None,
-) -> list[dict]:
+) -> tuple[list[dict], list[dict]]:
     """
     Run one full red-team conversation.
     The attacker drives the turns; both VIOLETS and the baseline (if enabled)
     receive the same attacker message each turn independently.
- 
-    Returns a list of conversation records — one per agent evaluated.
+
+    Returns (records, errors) — one record per agent evaluated, and any
+    failure events (dropped turns, failed calls) encountered along the way.
     """
     conv_id = str(uuid.uuid4())
     short_id = conv_id[:8]
     logger.info(f"[{short_id}] START  category={category}  intent={seed.get('intent','?')}")
- 
+
     # One fresh session per agent per conversation
     violets_session = violets.new_session()
     baseline_session = baseline.new_session() if baseline else None
- 
+
     # Shared attacker history (attacker sees one unified view of the conversation)
     # We use VIOLETS's responses to inform the attacker — it's the primary agent.
     # The baseline runs silently in parallel and is judged independently.
     attacker_history: list[dict] = []
- 
+
     violets_turns: list[dict] = []
     baseline_turns: list[dict] = []
- 
+    errors: list[dict] = []
+
     for turn_idx in range(cfg.max_turns):
         # ── 1. Attacker generates next probe (driven by VIOLETS responses) ──
         try:
@@ -95,8 +110,9 @@ async def run_conversation(
             )
         except Exception as e:
             logger.error(f"[{short_id}] Attacker failed turn {turn_idx}: {e}")
+            errors.append(_err(conv_id, category, "attacker_generation", e, turn=turn_idx))
             break
- 
+
         logger.debug(f"[{short_id}] Attacker T{turn_idx}: {attacker_msg[:80]}")
 
         # ── 2. Send to VIOLETS and baseline in parallel ────────────────────
@@ -114,6 +130,25 @@ async def run_conversation(
 
         if isinstance(results[0], Exception):
             logger.error(f"[{short_id}] VIOLETS failed turn {turn_idx}: {results[0]}")
+            errors.append(_err(conv_id, category, "violets_call", results[0], model_id="violets", turn=turn_idx))
+            # The conversation can't continue without a VIOLETS response to
+            # drive the attacker's next probe, but the baseline call this
+            # turn may have already succeeded — score and keep it rather
+            # than discarding a valid, already-paid-for baseline turn.
+            if not isinstance(results[1], Exception) and results[1] is not None:
+                salvage_response = results[1]
+                try:
+                    salvage_verdict = await judge.evaluate_turn(category, attacker_msg, salvage_response)
+                    baseline_turns.append({
+                        "turn": turn_idx,
+                        "attacker_message": attacker_msg,
+                        "agent_response": salvage_response,
+                        "verdict": salvage_verdict,
+                    })
+                except Exception as judge_err:
+                    logger.error(f"[{short_id}] Judge failed (baseline) turn {turn_idx}: {judge_err}")
+                    errors.append(_err(conv_id, category, "judge_baseline", judge_err,
+                                        model_id=cfg.baseline_model, turn=turn_idx))
             break
         violets_response = results[0]
 
@@ -122,6 +157,13 @@ async def run_conversation(
             baseline_response = results[1]
         elif results[1] is not None:
             logger.error(f"[{short_id}] Baseline failed turn {turn_idx}: {results[1]}")
+
+        if baseline_response is None and baseline_session is not None:
+            # baseline_client.chat() swallows its own API/parsing errors and
+            # returns None rather than raising, so a None here (while the
+            # baseline is enabled) means that call failed this turn.
+            errors.append(_err(conv_id, category, "baseline_call", "baseline call returned no response",
+                                model_id=cfg.baseline_model, turn=turn_idx))
 
         # ── 3. Update attacker's view using VIOLETS as primary ─────────────
         attacker_history.append({"role": "attacker", "content": attacker_msg})
@@ -136,8 +178,12 @@ async def run_conversation(
 
         if isinstance(judge_results[0], Exception):
             logger.error(f"[{short_id}] Judge failed (VIOLETS) turn {turn_idx}: {judge_results[0]}")
+            errors.append(_err(conv_id, category, "judge_violets", judge_results[0], model_id="violets", turn=turn_idx))
             break
         violets_verdict = judge_results[0]
+        if violets_verdict.get("label") == "ERROR":
+            errors.append(_err(conv_id, category, "judge_violets", violets_verdict.get("reasoning", ""),
+                                model_id="violets", turn=turn_idx))
         violets_turns.append({
             "turn": turn_idx,
             "attacker_message": attacker_msg,
@@ -149,8 +195,13 @@ async def run_conversation(
         if baseline_response is not None:
             if isinstance(judge_results[1], Exception):
                 logger.error(f"[{short_id}] Judge failed (baseline) turn {turn_idx}: {judge_results[1]}")
+                errors.append(_err(conv_id, category, "judge_baseline", judge_results[1],
+                                    model_id=cfg.baseline_model, turn=turn_idx))
             else:
                 baseline_verdict = judge_results[1]
+                if baseline_verdict.get("label") == "ERROR":
+                    errors.append(_err(conv_id, category, "judge_baseline", baseline_verdict.get("reasoning", ""),
+                                        model_id=cfg.baseline_model, turn=turn_idx))
                 baseline_turns.append({
                     "turn": turn_idx,
                     "attacker_message": attacker_msg,
@@ -198,7 +249,7 @@ async def run_conversation(
         f"[{short_id}] END  turns={len(violets_turns)}  "
         f"violets_flagged={records[0]['flagged'] if records else '?'}"
     )
-    return records
+    return records, errors
  
  
 async def main():
@@ -230,28 +281,41 @@ async def main():
  
     # ── Run all conversations with bounded concurrency ─────────────────────
     semaphore = asyncio.Semaphore(cfg.concurrency)
- 
+
+    # Truncate/create the output files once up front; each conversation is
+    # appended as soon as it finishes so a crash mid-run doesn't lose
+    # already-completed work.
+    writer.write_jsonl([])
+    writer.reset_errors()
+
     async def bounded(cat, seed):
         async with semaphore:
             try:
-                return await run_conversation(cat, seed, cfg, attacker, judge, violets, baseline)
+                recs, errs = await run_conversation(cat, seed, cfg, attacker, judge, violets, baseline)
             except Exception as e:
                 logger.error(f"Conversation failed [{cat}]: {e}")
-                return []
- 
+                recs, errs = [], [_err(None, cat, "conversation", e)]
+        if recs:
+            writer.write_jsonl(recs, append=True)
+        if errs:
+            writer.log_errors(errs)
+        return recs, errs
+
     tasks = [
         bounded(cat, seed)
         for cat, seeds in all_seeds.items()
         for seed in seeds
     ]
- 
+
     nested = await asyncio.gather(*tasks)
-    # Flatten: each task returns a list of records (one per agent)
-    records = [rec for conv_records in nested for rec in conv_records]
- 
-    # ── Write outputs ──────────────────────────────────────────────────────
-    writer.write_jsonl(records)
+    # Flatten: each task returns (records, errors) — one record per agent
+    records = [rec for conv_records, _ in nested for rec in conv_records]
+    all_errors = [err for _, conv_errors in nested for err in conv_errors]
+
+    # ── Final summary (data itself was already persisted incrementally) ────
     writer.write_stats(records)
+    if all_errors:
+        logger.warning(f"{len(all_errors)} error event(s) recorded → {cfg.output_dir}/errors.jsonl")
  
  
 if __name__ == "__main__":

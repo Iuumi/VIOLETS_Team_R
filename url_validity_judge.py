@@ -104,6 +104,29 @@ _URL_RE = re.compile(
 )
 
 
+def _extract_json_object(text: str, marker_key: str) -> dict:
+    """
+    Extract the first valid JSON object in `text` that contains `marker_key`.
+
+    The judge's schema nests per-URL objects inside `url_details`, so a
+    brace-matching regex truncates at the first inner `}` instead of the
+    real end of the object. Scanning for a balanced object via
+    json.JSONDecoder.raw_decode handles the nesting correctly regardless of
+    any preamble text the model emits before the JSON.
+    """
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(text, i)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict) and marker_key in obj:
+            return obj
+    raise ValueError(f"No JSON object with key {marker_key!r} found in judge output: {text!r}")
+
+
 def extract_urls(text: str) -> list[str]:
     """Pull every http(s) URL out of a response string."""
     raw = _URL_RE.findall(text)
@@ -185,17 +208,7 @@ class URLValidityJudge:
                 ],
             )
             text = resp.output_text
-
-            # The judge may emit preamble before the JSON object
-            match = re.search(
-                r'\{.*?"citation_rate_score".*?\}',
-                text,
-                re.DOTALL,
-            )
-            if not match:
-                raise ValueError(f"No JSON found in judge output: {text!r}")
-
-            result = json.loads(match.group())
+            result = _extract_json_object(text, "citation_rate_score")
 
             def clamp(v):
                 return max(0, min(100, int(v))) if v is not None else None
