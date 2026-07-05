@@ -305,10 +305,11 @@ async def main():
     url_judge       = URLValidityJudge(oai_client, cfg)
     violets         = VIOLETSClient(cfg)
     baseline        = BaselineClient(cfg, oai_client) if cfg.run_baseline else None
-    writer          = DatasetWriter("./output/rq1")
+    run_tag         = datetime.utcnow().strftime("%Y%m%d")
+    writer          = DatasetWriter("./output/rq1", run_tag=run_tag)
 
     logger.info(
-        f"Accuracy run starting | categories={cfg.accuracy_categories} | "
+        f"Accuracy run starting | run_tag={run_tag} | categories={cfg.accuracy_categories} | "
         f"seeds_per_category={cfg.seeds_per_category} | max_turns={cfg.max_turns} | "
         f"concurrency={cfg.concurrency} | baseline={cfg.baseline_model if baseline else 'disabled'}"
     )

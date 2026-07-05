@@ -329,9 +329,16 @@ async def run_evaluation(
 
 # ── Output ────────────────────────────────────────────────────────────────────
 
-def write_jsonl(rows: list[dict], output_dir: Path) -> Path:
+def write_jsonl(rows: list[dict], output_dir: Path, run_tag: Optional[str] = None) -> Path:
+    """
+    Write rows to eval_dataset.jsonl, or eval_dataset_<run_tag>.jsonl if a
+    run_tag (e.g. a "YYYYMMDD" date) is given — so repeated runs on
+    different dates (e.g. for temporal-stability testing) don't overwrite
+    each other's data.
+    """
     ensure_dir(output_dir)
-    path = output_dir / "eval_dataset.jsonl"
+    filename = f"eval_dataset_{run_tag}.jsonl" if run_tag else "eval_dataset.jsonl"
+    path = output_dir / filename
     with path.open("w", encoding="utf-8") as f:
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -391,8 +398,9 @@ async def async_main(args: argparse.Namespace) -> None:
         base_url=cfg.openai_base_url,
     )
 
+    run_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
     logger.info(
-        f"RQ3 starting | FAQs={len(faq_pairs)} | "
+        f"RQ3 starting | run_tag={run_tag} | FAQs={len(faq_pairs)} | "
         f"GLC={'yes' if not args.no_glc else 'no'} | "
         f"baseline={cfg.baseline_model if cfg.run_baseline else 'disabled'} | "
         f"concurrency={cfg.concurrency}"
@@ -405,7 +413,7 @@ async def async_main(args: argparse.Namespace) -> None:
         with_glc=not args.no_glc,
     )
 
-    write_jsonl(rows, Path(args.output_dir))
+    write_jsonl(rows, Path(args.output_dir), run_tag=run_tag)
     print_summary(rows)
 
 

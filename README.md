@@ -53,10 +53,10 @@ See [Reproducing the Evaluation](#reproducing-the-evaluation) for the exact comm
                                  │  (shared)
                     ┌────────────▼────────────┐
                     │     dataset_writer.py    │
-                    │  output/rq1/eval_dataset.jsonl  (RQ1)
-                    │  output/rq2/eval_dataset.jsonl  (RQ2)
-                    │  output/rq1/errors.jsonl        (RQ1)
-                    │  output/rq2/errors.jsonl        (RQ2)
+                    │  output/rq1/eval_dataset_<date>.jsonl  (RQ1)
+                    │  output/rq2/eval_dataset_<date>.jsonl  (RQ2)
+                    │  output/rq1/errors_<date>.jsonl        (RQ1)
+                    │  output/rq2/errors_<date>.jsonl        (RQ2)
                     └─────────────────────────┘
 ```
 
@@ -75,7 +75,7 @@ RQ1 and RQ2 share the judge-based, multi-turn architecture above. **RQ3 is a sep
    SemanticScorer  ──►  cosine similarity(response embedding, official answer embedding)
               │
               ▼
-   output/rq3/eval_dataset.jsonl
+   output/rq3/eval_dataset_<date>.jsonl
 ```
 
 ---
@@ -137,6 +137,7 @@ OPENAI_BASE_URL=
 # VIOLETS server
 VIOLETS_ENDPOINT= 
 VIOLETS_API_KEY=
+VIOLETS_TIMEOUT=60            # seconds to wait for a VIOLETS response before treating it as failed
 
 # Models
 ATTACKER_MODEL=gpt-4o
@@ -160,6 +161,7 @@ OUTPUT_DIR=./output/rq2      # RQ2 only — see note below
 |---|:---:|:---:|:---:|
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL` | ✅ | ✅ | ✅ |
 | `VIOLETS_ENDPOINT`, `VIOLETS_API_KEY` | ✅ | ✅ | ✅ |
+| `VIOLETS_TIMEOUT` | ✅ | ✅ | ✅ (default 60s; raise if VIOLETS is slow under load) |
 | `BASELINE_MODEL`, `BASELINE_SYSTEM_PROMPT`, `RUN_BASELINE` | ✅ | ✅ | ✅ |
 | `ATTACKER_MODEL` | ✅ (`participant.py` follow-up questions — misleading name, it's not RQ2-specific) | ✅ (attacker follow-up probes) | — |
 | `JUDGE_MODEL` | — | ✅ | — |
@@ -177,6 +179,8 @@ RQ3's embedding model (`text-embedding-3-small`) and query-paraphraser model (`g
 
 Assumes Setup (above) is done: dependencies installed, `.env` configured, and VIOLETS reachable at `VIOLETS_ENDPOINT`. Each part below is independent — run whichever RQs you need, in any order.
 
+**Repeated runs (e.g. temporal-stability testing) are date-tagged automatically.** Every run computes today's UTC date (`YYYYMMDD`) once at startup and writes `eval_dataset_<date>.jsonl` / `errors_<date>.jsonl` instead of the bare `eval_dataset.jsonl` — so re-running on a different day never overwrites a previous day's data. **Running twice on the same day still overwrites that day's file** (this granularity was a deliberate choice for simplicity — switch to a full timestamp in `datetime.utcnow().strftime(...)` in each runner's `main()` if you need same-day reruns preserved too).
+
 ### 1. RQ1 — Accuracy evaluation
 
 ```bash
@@ -185,12 +189,12 @@ python accuracy_runner.py
 
 - Reads seeds from the five FAQ question-type categories (see [FAQ Question Types](#faq-question-types-rq1)), generated live by `participant_generator.py` (falls back to hardcoded seeds if generation fails).
 - Writes incrementally as each conversation finishes:
-  - `output/rq1/eval_dataset.jsonl` — one line per turn, per model (see schema below)
-  - `output/rq1/errors.jsonl` — one line per failed call/judge event, if any occurred
-- Then run the analysis:
+  - `output/rq1/eval_dataset_<YYYYMMDD>.jsonl` — one line per turn, per model (see schema below)
+  - `output/rq1/errors_<YYYYMMDD>.jsonl` — one line per failed call/judge event, if any occurred
+- Then run the analysis, pointing `--input` at that day's file:
 
 ```bash
-python RQ1_analyze.py     # reads output/rq1/eval_dataset.jsonl → output/rq1/analysis_mixed/
+python RQ1_analyze.py --input output/rq1/eval_dataset_<YYYYMMDD>.jsonl --output_dir output/rq1/analysis_mixed_<YYYYMMDD>
 ```
 
 ### 2. RQ2 — Safety evaluation
@@ -201,13 +205,13 @@ python redteam_runner.py
 
 - Reads seeds from the five threat categories (see [Threat Categories](#threat-categories-rq2)), generated live by `seed_generator.py` (falls back to hardcoded seeds if generation fails).
 - Writes incrementally as each conversation finishes:
-  - `output/rq2/eval_dataset.jsonl` — one line per turn, per model
-  - `output/rq2/errors.jsonl` — one line per failed call/judge event, if any occurred
+  - `output/rq2/eval_dataset_<YYYYMMDD>.jsonl` — one line per turn, per model
+  - `output/rq2/errors_<YYYYMMDD>.jsonl` — one line per failed call/judge event, if any occurred
 - Stops a conversation early after 3 consecutive firm VIOLETS refusals.
-- Then run the analysis:
+- Then run the analysis, pointing `--input` at that day's file:
 
 ```bash
-python RQ2_analyze.py     # reads output/rq2/eval_dataset.jsonl → output/rq2/analysis_mixed/
+python RQ2_analyze.py --input output/rq2/eval_dataset_<YYYYMMDD>.jsonl --output_dir output/rq2/analysis_mixed_<YYYYMMDD>
 ```
 
 ### 3. RQ3 — FAQ alignment evaluation
@@ -221,8 +225,10 @@ python q3.py --output_dir path/to/dir     # override the output location (defaul
 
 - Reads Q&A pairs from `data/faq_pairs.csv` (26 rows across 9 categories by default).
 - For each pair, queries VIOLETS and the baseline once with the original question, and once more with a GPT-4o-mini paraphrase (unless `--no-glc`), then scores each response by cosine similarity against the official answer.
-- Writes `output/rq3/eval_dataset.jsonl` once at the end of the run (unlike RQ1/RQ2, RQ3 does not write incrementally or produce an `errors.jsonl` — failures are logged to the console only).
+- Writes `output/rq3/eval_dataset_<YYYYMMDD>.jsonl` once at the end of the run (unlike RQ1/RQ2, RQ3 does not write incrementally or produce an `errors.jsonl` — failures are logged to the console only).
 - There is no `RQ3_analyze.py`; `q3.py` prints a mean-similarity-per-model summary to stdout when it finishes.
+
+Without any code changes, `RQ1_analyze.py`/`RQ2_analyze.py` still default to the undated `output/rq{1,2}/eval_dataset.jsonl` if you ever call `DatasetWriter(...)` without a `run_tag` — the date-tagging only kicks in through `accuracy_runner.py`/`redteam_runner.py`/`q3.py`'s own `main()`, which always pass one.
 
 ### Analysis output files (RQ1 / RQ2 only)
 
@@ -244,7 +250,7 @@ python q3.py --output_dir path/to/dir     # override the output location (defaul
 
 ## Output Schemas
 
-### RQ1 — `output/rq1/eval_dataset.jsonl`
+### RQ1 — `output/rq1/eval_dataset_<YYYYMMDD>.jsonl`
 One line per turn, per model evaluated.
 
 | Field | Description |
@@ -269,7 +275,7 @@ One line per turn, per model evaluated.
 | `url_validity_stats` | Conversation-level citation aggregate — `pct_cited`, `pct_accessible`, `pct_accurate`, etc. (VIOLETS only, `null` for baseline) |
 | `timestamp` | ISO 8601 UTC |
 
-### RQ2 — `output/rq2/eval_dataset.jsonl`
+### RQ2 — `output/rq2/eval_dataset_<YYYYMMDD>.jsonl`
 One line per turn, per model evaluated.
 
 | Field | Description |
@@ -293,7 +299,7 @@ One line per turn, per model evaluated.
 | `conversation_flagged` | `true` if any turn in the conversation is `FAIL` |
 | `timestamp` | ISO 8601 UTC |
 
-### RQ3 — `output/rq3/eval_dataset.jsonl`
+### RQ3 — `output/rq3/eval_dataset_<YYYYMMDD>.jsonl`
 One line per `(faq_id, query_type, model_id)` — i.e. up to 4 lines per FAQ pair (original × 2 models, GLC-perturbed × 2 models).
 
 | Field | Description |
@@ -308,8 +314,8 @@ One line per `(faq_id, query_type, model_id)` — i.e. up to 4 lines per FAQ pai
 | `similarity_score` | Cosine similarity in [0, 1] between response and official answer embeddings (`text-embedding-3-small`); `null` if the query or scoring failed |
 | `timestamp` | ISO 8601 UTC |
 
-### RQ1 / RQ2 — `output/rq{1,2}/errors.jsonl`
-One line per failed call or degraded judge event (not present for RQ3). Absent entirely if a run had zero errors.
+### RQ1 / RQ2 — `output/rq{1,2}/errors_<YYYYMMDD>.jsonl`
+One line per failed call or degraded judge event (not present for RQ3). Empty (0 bytes) if a run had zero errors — the file is still created since `reset_errors()` truncates it at the start of every run.
 
 | Field | Description |
 |---|---|
@@ -370,7 +376,8 @@ Required columns: `id, category, question, answer`. Add rows to extend coverage 
 - **Judges score independently** — each response is scored on its own, not relative to the other model (RQ1/RQ2). RQ3 uses no LLM judge at all — alignment is measured by embedding cosine similarity against the official FAQ answer, which avoids judge-model bias but also can't explain *why* a response diverges
 - **Bounded concurrency** — `asyncio.Semaphore(cfg.concurrency)` prevents API rate limit exhaustion (all three RQs)
 - **Fallback seeds** — hardcoded seeds in both RQ1/RQ2 generators ensure runs complete even if LLM generation fails
-- **Incremental, crash-safe writes (RQ1/RQ2)** — `eval_dataset.jsonl` and `errors.jsonl` are appended to as each conversation finishes, not buffered in memory and written once at the end; a crash mid-run keeps everything completed so far. RQ3 does not yet have this — it writes once at the end of the run.
+- **Incremental, crash-safe writes (RQ1/RQ2)** — `eval_dataset_<date>.jsonl` and `errors_<date>.jsonl` are appended to as each conversation finishes, not buffered in memory and written once at the end; a crash mid-run keeps everything completed so far. RQ3 does not yet have this — it writes once at the end of the run.
+- **Output filenames are date-tagged (all three RQs)** — each run computes today's UTC date once at startup and writes `eval_dataset_<YYYYMMDD>.jsonl` (and `errors_<YYYYMMDD>.jsonl` for RQ1/RQ2) instead of a fixed filename, so repeated runs on different days (e.g. temporal-stability testing) don't overwrite each other. Two runs on the *same* day still overwrite each other — this was a deliberate simplicity/collision-risk tradeoff, not an oversight.
 - **A VIOLETS-side failure ends the conversation, but doesn't waste the baseline's turn** — the participant/attacker needs VIOLETS's response to drive the next turn, so a VIOLETS API failure stops that conversation; but if the baseline call for that same turn already succeeded, it's still scored and recorded rather than discarded
 - **Baseline errors are excluded, not judged** — if the baseline call fails, that turn is skipped entirely rather than having the judge score a fabricated error string as if it were real model output
 - **Errors are structured, not just logged (RQ1/RQ2)** — every dropped turn or degraded judge call is recorded to `errors.jsonl` with enough context (conversation, turn, stage) to audit how much data was lost and why, in addition to the console log line

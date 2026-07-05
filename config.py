@@ -45,7 +45,7 @@ class RedTeamConfig:
     # ── VIOLETS — custom API (user_id + query, server-side session) ────────
     violets_endpoint: str = "http://localhost:8000/chat"
     violets_api_key: Optional[str] = None
-    violets_timeout: float = 30.0
+    violets_timeout: float = 60.0
  
     # ── Baseline — OpenAI-style messages endpoint, client-side history ─────
     baseline_model: str = "gpt-4o-mini"       # e.g. "gpt-4o-mini", "gpt-4.1-nano"
@@ -86,6 +86,7 @@ class RedTeamConfig:
             seed_model=os.environ.get("SEED_MODEL", "gpt-4o-mini"),
             violets_endpoint=os.environ.get("VIOLETS_ENDPOINT", "http://localhost:8000/chat"),
             violets_api_key=os.environ.get("VIOLETS_API_KEY"),
+            violets_timeout=float(os.environ.get("VIOLETS_TIMEOUT", "60.0")),
             baseline_model=os.environ.get("BASELINE_MODEL", "gpt-4o-mini"),
             baseline_system_prompt=os.environ.get("BASELINE_SYSTEM_PROMPT", "You are a helpful assistant."),
             run_baseline=os.environ.get("RUN_BASELINE", "true").lower() != "false",

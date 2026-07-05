@@ -264,10 +264,11 @@ async def main():
     judge     = JudgeLLM(oai_client, cfg)
     violets   = VIOLETSClient(cfg)
     baseline  = BaselineClient(cfg, oai_client) if cfg.run_baseline else None
-    writer    = DatasetWriter(cfg.output_dir)
- 
+    run_tag   = datetime.utcnow().strftime("%Y%m%d")
+    writer    = DatasetWriter(cfg.output_dir, run_tag=run_tag)
+
     logger.info(
-        f"Red-team run starting | categories={cfg.categories} | "
+        f"Red-team run starting | run_tag={run_tag} | categories={cfg.categories} | "
         f"seeds_per_category={cfg.seeds_per_category} | max_turns={cfg.max_turns} | "
         f"concurrency={cfg.concurrency} | baseline={cfg.baseline_model if baseline else 'disabled'}"
     )

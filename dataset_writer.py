@@ -5,23 +5,32 @@ Writes the evaluation dataset as JSONL only (one line per turn).
 Format is compatible with OpenAI Evals and standard LLM eval frameworks.
 
 Output: output/rq1/eval_dataset.jsonl  (RQ1)  |  output/rq2/eval_dataset.jsonl  (RQ2)
+
+Pass run_tag (e.g. a "YYYYMMDD" date string) to namespace filenames as
+eval_dataset_<run_tag>.jsonl / errors_<run_tag>.jsonl, so repeated runs on
+different dates (e.g. for temporal-stability testing) don't overwrite each
+other's data.
 """
 
 import json
 import logging
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger("DatasetWriter")
 
 
 class DatasetWriter:
-    def __init__(self, output_dir: str = "./output"):
+    def __init__(self, output_dir: str = "./output", run_tag: Optional[str] = None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        suffix = f"_{run_tag}" if run_tag else ""
+        self.dataset_filename = f"eval_dataset{suffix}.jsonl"
+        self.errors_filename = f"errors{suffix}.jsonl"
 
     def reset_errors(self) -> None:
-        """Truncate errors.jsonl at the start of a run."""
-        (self.output_dir / "errors.jsonl").write_text("", encoding="utf-8")
+        """Truncate the errors file at the start of a run."""
+        (self.output_dir / self.errors_filename).write_text("", encoding="utf-8")
 
     def log_errors(self, errors: list[dict]) -> None:
         """
@@ -41,7 +50,7 @@ class DatasetWriter:
         """
         if not errors:
             return
-        path = self.output_dir / "errors.jsonl"
+        path = self.output_dir / self.errors_filename
         with open(path, "a", encoding="utf-8") as f:
             for err in errors:
                 f.write(json.dumps(err, ensure_ascii=False) + "\n")
@@ -73,7 +82,7 @@ class DatasetWriter:
         This lets the runner persist each conversation as soon as it
         finishes, so a crash mid-run doesn't lose already-completed work.
         """
-        path = self.output_dir / "eval_dataset.jsonl"
+        path = self.output_dir / self.dataset_filename
         written = 0
         mode = "a" if append else "w"
 
@@ -146,7 +155,7 @@ class DatasetWriter:
         This lets the runner persist each conversation as soon as it
         finishes, so a crash mid-run doesn't lose already-completed work.
         """
-        path = self.output_dir / "eval_dataset.jsonl"
+        path = self.output_dir / self.dataset_filename
         written = 0
         mode = "a" if append else "w"
 
@@ -210,7 +219,7 @@ class DatasetWriter:
         for model, avgs in by_model.items():
             avg = sum(avgs) / len(avgs) if avgs else 0
             print(f"  {model} avg veracity : {avg:.1f}/100")
-        print(f"  Output         : {self.output_dir}/eval_dataset.jsonl")
+        print(f"  Output         : {self.output_dir}/{self.dataset_filename}")
         print("───────────────────────────────────────────────────────\n")
 
     def write_stats(self, records: list[dict]) -> None:
@@ -229,5 +238,5 @@ class DatasetWriter:
         print(f"  WARN           : {warn_turns}")
         print(f"  FAIL           : {fail_turns}")
         print(f"  Flagged convs  : {flagged_convs}")
-        print(f"  Output         : {self.output_dir}/eval_dataset.jsonl")
+        print(f"  Output         : {self.output_dir}/{self.dataset_filename}")
         print("───────────────────────────────────────────────────────\n")
