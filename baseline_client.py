@@ -21,6 +21,9 @@ regular chat models via the chat.completions endpoint:
     consumed entirely by reasoning and returns empty content with no error.
     Measured empirically against gpt-5-nano: realistic multi-sentence
     election-FAQ answers needed 4,400-5,800 reasoning tokens alone.
+  - reasoning_effort="medium" + verbosity="low": cuts reasoning-token spend
+    (measured ~4000 -> ~3000 for the same prompt) and keeps the visible
+    answer concise, without changing the max_tokens/temperature story above.
 """
 
 import logging
@@ -37,6 +40,8 @@ _REASONING_MODEL_PREFIXES = ("o1", "o3", "o4", "gpt-5")
 # Sized with headroom above the ~5-6k reasoning tokens observed for
 # realistic prompts so answers aren't truncated into empty content.
 _REASONING_MODEL_MAX_COMPLETION_TOKENS = 8000
+_REASONING_MODEL_EFFORT = "medium"
+_REASONING_MODEL_VERBOSITY = "low"
 
 # Regular (non-reasoning) chat models use this fixed budget + temperature.
 _CHAT_MODEL_MAX_TOKENS = 512
@@ -98,7 +103,11 @@ class BaselineSession:
         self.history.append({"role": "user", "content": latest_user_message})
 
         if self.is_reasoning_model:
-            call_kwargs = {"max_completion_tokens": _REASONING_MODEL_MAX_COMPLETION_TOKENS}
+            call_kwargs = {
+                "max_completion_tokens": _REASONING_MODEL_MAX_COMPLETION_TOKENS,
+                "reasoning_effort": _REASONING_MODEL_EFFORT,
+                "verbosity": _REASONING_MODEL_VERBOSITY,
+            }
         else:
             call_kwargs = {"max_tokens": _CHAT_MODEL_MAX_TOKENS, "temperature": _CHAT_MODEL_TEMPERATURE}
 

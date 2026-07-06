@@ -53,7 +53,12 @@ from openai import AsyncOpenAI
 
 from config import RedTeamConfig
 from violets_client import VIOLETSClient
-from baseline_client import _is_reasoning_model, _REASONING_MODEL_MAX_COMPLETION_TOKENS
+from baseline_client import (
+    _is_reasoning_model,
+    _REASONING_MODEL_MAX_COMPLETION_TOKENS,
+    _REASONING_MODEL_EFFORT,
+    _REASONING_MODEL_VERBOSITY,
+)
 
 load_dotenv()
 
@@ -190,7 +195,11 @@ async def query_baseline(
 
     is_reasoning = _is_reasoning_model(cfg.baseline_model)
     if is_reasoning:
-        call_kwargs = {"max_completion_tokens": _REASONING_MODEL_MAX_COMPLETION_TOKENS}
+        call_kwargs = {
+            "max_completion_tokens": _REASONING_MODEL_MAX_COMPLETION_TOKENS,
+            "reasoning_effort": _REASONING_MODEL_EFFORT,
+            "verbosity": _REASONING_MODEL_VERBOSITY,
+        }
     else:
         call_kwargs = {"max_tokens": 512, "temperature": 0.0}
 
