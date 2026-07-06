@@ -79,20 +79,20 @@ If the response contains NO URLs:
   accuracy_score      = null   (no URLs to evaluate)
 
 Your output must be ONLY this JSON — no explanation outside the JSON:
-{{
+{
   "citation_rate_score": <0 or 100>,
   "accessibility_score": <integer 0-100 or null>,
   "accuracy_score": <integer 0-100 or null>,
   "url_details": [
-    {{
+    {
       "url": "<the URL>",
       "accessibility": <0, 50, or 100>,
       "accuracy": <0, 60, or 100>,
       "note": "<one sentence explaining the accessibility and accuracy finding>"
-    }}
+    }
   ],
   "reasoning": "<one sentence summarising the overall citation quality>"
-}}
+}
 """
 
 

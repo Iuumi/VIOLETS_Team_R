@@ -53,6 +53,7 @@ from openai import AsyncOpenAI
 
 from config import RedTeamConfig
 from violets_client import VIOLETSClient
+from baseline_client import _is_reasoning_model, _REASONING_MODEL_MAX_COMPLETION_TOKENS
 
 load_dotenv()
 
@@ -176,8 +177,23 @@ async def query_baseline(
     oai_client: AsyncOpenAI,
     cfg: RedTeamConfig,
 ) -> Optional[str]:
+    """
+    Query the baseline model once.
+
+    Reasoning models (o1/o3/o4/gpt-5 family) reject max_tokens/non-default
+    temperature and need a much larger completion-token budget than a
+    regular chat model — see baseline_client.py for the full rationale and
+    the empirical numbers behind _REASONING_MODEL_MAX_COMPLETION_TOKENS.
+    """
     if not cfg.run_baseline:
         return None
+
+    is_reasoning = _is_reasoning_model(cfg.baseline_model)
+    if is_reasoning:
+        call_kwargs = {"max_completion_tokens": _REASONING_MODEL_MAX_COMPLETION_TOKENS}
+    else:
+        call_kwargs = {"max_tokens": 512, "temperature": 0.0}
+
     try:
         resp = await oai_client.chat.completions.create(
             model=cfg.baseline_model,
@@ -185,10 +201,17 @@ async def query_baseline(
                 {"role": "system", "content": cfg.baseline_system_prompt},
                 {"role": "user", "content": question},
             ],
-            max_tokens=512,
-            temperature=0.0,
+            **call_kwargs,
         )
-        return resp.choices[0].message.content.strip()
+        content = resp.choices[0].message.content
+        reply = content.strip() if content else None
+        if not reply:
+            logger.error(
+                f"Baseline returned empty content (model={cfg.baseline_model}, "
+                f"reasoning_model={is_reasoning})"
+            )
+            return None
+        return reply
     except Exception as e:
         logger.error(f"Baseline query error: {e}")
         return None

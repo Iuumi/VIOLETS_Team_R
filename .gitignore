@@ -12,3 +12,6 @@ env/
 
 # Output datasets — large generated files
 # output/
+
+# Run logs
+logs/

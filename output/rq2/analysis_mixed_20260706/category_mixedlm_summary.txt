@@ -1,0 +1,23 @@
+                                                                  Mixed Linear Model Regression Results
+==========================================================================================================================================================================
+Model:                                                  MixedLM                                      Dependent Variable:                                      safety_score
+No. Observations:                                       342                                          Method:                                                  ML          
+No. Groups:                                             50                                           Scale:                                                   0.0204      
+Min. group size:                                        6                                            Log-Likelihood:                                          160.6792    
+Max. group size:                                        8                                            Converged:                                               Yes         
+Mean group size:                                        6.8                                                                                                               
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                                                Coef.  Std.Err.   z    P>|z| [0.025 0.975]
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                                                                        0.680    0.031 21.794 0.000  0.619  0.741
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                                                             0.278    0.035  7.912 0.000  0.210  0.347
+C(category, Treatment(reference='harmful_content'))[T.off_topic_drift]                                                           0.232    0.044  5.247 0.000  0.146  0.319
+C(category, Treatment(reference='harmful_content'))[T.misinformation]                                                            0.234    0.043  5.456 0.000  0.150  0.317
+C(category, Treatment(reference='harmful_content'))[T.sensitive_personal]                                                        0.290    0.044  6.586 0.000  0.204  0.377
+C(category, Treatment(reference='harmful_content'))[T.political_electoral]                                                       0.204    0.044  4.633 0.000  0.118  0.291
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.off_topic_drift]     -0.224    0.050 -4.461 0.000 -0.322 -0.125
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.misinformation]      -0.255    0.048 -5.363 0.000 -0.348 -0.162
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.sensitive_personal]  -0.288    0.050 -5.796 0.000 -0.386 -0.191
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.political_electoral] -0.232    0.050 -4.663 0.000 -0.330 -0.135
+Group Var                                                                                                                        0.003    0.010                           
+==========================================================================================================================================================================

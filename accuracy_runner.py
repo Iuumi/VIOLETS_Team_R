@@ -358,7 +358,7 @@ async def main():
     # ── Final summary (data itself was already persisted incrementally) ────
     writer.write_accuracy_stats(records)
     if all_errors:
-        logger.warning(f"{len(all_errors)} error event(s) recorded → output/rq1/errors.jsonl")
+        logger.warning(f"{len(all_errors)} error event(s) recorded → {writer.output_dir}/{writer.errors_filename}")
 
 
 if __name__ == "__main__":
