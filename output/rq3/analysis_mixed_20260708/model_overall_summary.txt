@@ -1,0 +1,15 @@
+                            Mixed Linear Model Regression Results
+==============================================================================================
+Model:                        MixedLM           Dependent Variable:           similarity_score
+No. Observations:             104               Method:                       ML              
+No. Groups:                   26                Scale:                        0.0043          
+Min. group size:              4                 Log-Likelihood:               110.3183        
+Max. group size:              4                 Converged:                    Yes             
+Mean group size:              4.0                                                             
+----------------------------------------------------------------------------------------------
+                                                     Coef. Std.Err.   z    P>|z| [0.025 0.975]
+----------------------------------------------------------------------------------------------
+Intercept                                            0.597    0.018 33.056 0.000  0.561  0.632
+C(model, Treatment(reference='Baseline'))[T.VIOLETS] 0.044    0.013  3.416 0.001  0.019  0.069
+Group Var                                            0.006    0.036                           
+==============================================================================================

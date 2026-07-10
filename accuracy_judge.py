@@ -10,6 +10,7 @@ ground-truth facts from official Maryland election sources before scoring.
 Allowed search domains:
   - elections.maryland.gov
   - *.montgomerycountymd.gov/elections*
+  - box.com (Maryland State Board of Elections document hosting, e.g. mdsbe.app.box.com)
 
 Each response is scored independently (not head-to-head) so scores are comparable
 across models without anchoring bias.
@@ -37,6 +38,7 @@ Do NOT answer the user's question. Instead:
      Search ONLY on these authoritative domains:
        • elections.maryland.gov
        • *.montgomerycountymd.gov/elections*
+       • box.com (Maryland State Board of Elections document hosting)
   2. Compare what the assistant said against what you found.
   3. Output a JSON score.
 
@@ -94,7 +96,8 @@ class AccuracyJudge:
             f"SCORE THIS RESPONSE — do not answer the question.\n\n"
             f"Original user question (context only):\n{query}\n\n"
             f"AI assistant response to score:\n{response}\n\n"
-            f"Search elections.maryland.gov and montgomerycountymd.gov/elections to verify "
+            f"Search elections.maryland.gov, montgomerycountymd.gov/elections, and "
+            f"box.com (Maryland State Board of Elections document hosting) to verify "
             f"the facts, then output the JSON score."
         )
 
@@ -109,6 +112,7 @@ class AccuracyJudge:
                                 "elections.maryland.gov",
                                 "www.montgomerycountymd.gov",
                                 "montgomerycountymd.gov",
+                                "box.com",
                             ]
                         },
                     }

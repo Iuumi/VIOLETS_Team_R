@@ -1,0 +1,13 @@
+model,bucket,count,pct
+Baseline,0–39,2,1.2
+Baseline,40–59,15,9.4
+Baseline,60–69,49,30.6
+Baseline,70–79,15,9.4
+Baseline,80–89,49,30.6
+Baseline,90–100,30,18.8
+VIOLETS,0–39,4,2.5
+VIOLETS,40–59,14,8.8
+VIOLETS,60–69,25,15.6
+VIOLETS,70–79,9,5.6
+VIOLETS,80–89,36,22.5
+VIOLETS,90–100,72,45.0

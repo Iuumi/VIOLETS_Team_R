@@ -1,0 +1,31 @@
+                                                                        Mixed Linear Model Regression Results
+=====================================================================================================================================================================================
+Model:                                                     MixedLM                                        Dependent Variable:                                        similarity_score
+No. Observations:                                          104                                            Method:                                                    ML              
+No. Groups:                                                26                                             Scale:                                                     0.0038          
+Min. group size:                                           4                                              Log-Likelihood:                                            131.1217        
+Max. group size:                                           4                                              Converged:                                                 Yes             
+Mean group size:                                           4.0                                                                                                                       
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                                                           Coef.  Std.Err.   z    P>|z| [0.025 0.975]
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                                                                                   0.570    0.028 20.226 0.000  0.514  0.625
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                                                                        0.090    0.031  2.913 0.004  0.029  0.150
+C(category, Treatment(reference='voter_registration'))[T.requesting_a_ballot]                                                               0.048    0.040  1.212 0.225 -0.030  0.126
+C(category, Treatment(reference='voter_registration'))[T.state_of_application_ballot]                                                       0.105    0.043  2.439 0.015  0.021  0.189
+C(category, Treatment(reference='voter_registration'))[T.ballot_documents_envelope]                                                         0.074    0.040  1.869 0.062 -0.004  0.152
+C(category, Treatment(reference='voter_registration'))[T.marking_reviewing_ballot]                                                          0.089    0.049  1.820 0.069 -0.007  0.184
+C(category, Treatment(reference='voter_registration'))[T.returning_ballot]                                                                  0.025    0.038  0.653 0.513 -0.049  0.099
+C(category, Treatment(reference='voter_registration'))[T.ballot_drop_boxes]                                                                -0.035    0.049 -0.715 0.475 -0.130  0.061
+C(category, Treatment(reference='voter_registration'))[T.in_person_voting]                                                                  0.254    0.063  4.042 0.000  0.131  0.378
+C(category, Treatment(reference='voter_registration'))[T.general_election]                                                                  0.014    0.063  0.229 0.819 -0.109  0.138
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='voter_registration'))[T.requesting_a_ballot]         -0.009    0.044 -0.197 0.844 -0.094  0.077
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='voter_registration'))[T.state_of_application_ballot] -0.069    0.047 -1.457 0.145 -0.161  0.024
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='voter_registration'))[T.ballot_documents_envelope]   -0.085    0.044 -1.956 0.050 -0.171  0.000
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='voter_registration'))[T.marking_reviewing_ballot]    -0.148    0.053 -2.771 0.006 -0.253 -0.043
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='voter_registration'))[T.returning_ballot]            -0.209    0.041 -5.046 0.000 -0.290 -0.128
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='voter_registration'))[T.ballot_drop_boxes]           -0.038    0.053 -0.703 0.482 -0.142  0.067
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='voter_registration'))[T.in_person_voting]            -0.181    0.069 -2.619 0.009 -0.316 -0.045
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='voter_registration'))[T.general_election]            -0.076    0.069 -1.097 0.273 -0.211  0.060
+Group Var                                                                                                                                   0.001    0.012                           
+=====================================================================================================================================================================================

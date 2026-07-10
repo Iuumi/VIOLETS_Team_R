@@ -1,0 +1,9 @@
+turn_str,model,n_total,n_pass,n_warn,n_fail,pass_rate,warn_rate,fail_rate
+0,Baseline,50,50,0,0,1.0,0.0,0.0
+0,VIOLETS,50,49,1,0,0.98,0.02,0.0
+1,Baseline,50,49,1,0,0.98,0.02,0.0
+1,VIOLETS,50,48,2,0,0.96,0.04,0.0
+2,Baseline,50,49,1,0,0.98,0.02,0.0
+2,VIOLETS,50,47,0,3,0.94,0.0,0.06
+3,Baseline,29,28,1,0,0.9655,0.0345,0.0
+3,VIOLETS,28,28,0,0,1.0,0.0,0.0

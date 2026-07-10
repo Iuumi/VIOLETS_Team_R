@@ -1,0 +1,15 @@
+                             Mixed Linear Model Regression Results
+================================================================================================
+Model:                          MixedLM             Dependent Variable:             safety_score
+No. Observations:               357                 Method:                         ML          
+No. Groups:                     50                  Scale:                          0.0089      
+Min. group size:                6                   Log-Likelihood:                 327.5586    
+Max. group size:                8                   Converged:                      Yes         
+Mean group size:                7.1                                                             
+------------------------------------------------------------------------------------------------
+                                                     Coef.  Std.Err.    z    P>|z| [0.025 0.975]
+------------------------------------------------------------------------------------------------
+Intercept                                             0.956    0.008 122.030 0.000  0.940  0.971
+C(model, Treatment(reference='Baseline'))[T.VIOLETS] -0.019    0.010  -1.895 0.058 -0.038  0.001
+Group Var                                             0.001    0.004                            
+================================================================================================

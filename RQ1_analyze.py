@@ -52,6 +52,11 @@ Files created:
 - model_overall_summary.txt
 - category_model_summary.txt
 - turn_model_summary.txt
+- url_citation_summary.csv        (RQ1.2 — VIOLETS-only, no baseline citations to compare against)
+- url_citation_by_category.csv    (RQ1.2, per category)
+- url_citations_flagged_for_review.csv  (RQ1.2, cited URLs whose content didn't
+  clearly support the claim — only written if the input JSONL has url_* columns,
+  i.e. it was produced after the RQ1.2 grounding-pipeline fix)
 
 Notes
 -----
@@ -76,6 +81,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
+
+from url_validity_judge import compute_url_aggregate_stats
 
 # ── Review protocol constants (RQ1.1 planning doc) ────────────────────────────
 REVIEW_THRESHOLD = 70  # Turns below this are flagged for human review
@@ -161,6 +168,76 @@ def build_flagged_table(
             "reasoning",
         ]
     ]
+
+
+# ============================================================================
+# URL citation quality (RQ1.2 — Grounding and Citation Reliability)
+# ============================================================================
+#
+# Baseline never produces RAG-style citations, so these are VIOLETS-only
+# descriptive summaries — not a VIOLETS-vs-Baseline mixed-effects comparison
+# like the tables above. They reuse compute_url_aggregate_stats() from
+# url_validity_judge.py so the aggregation logic matches exactly what the
+# runner already computes per-conversation, instead of reimplementing it.
+
+
+def _violets_url_turns(df: pd.DataFrame) -> list[dict]:
+    """Reshape VIOLETS rows into the {citation_rate_score, url_details} shape
+    compute_url_aggregate_stats() expects (matching the raw judge output keys,
+    not the url_-prefixed column names dataset_writer.py stores them under)."""
+    violets = df[df["model"] == "VIOLETS"]
+    return [
+        {
+            "citation_rate_score": row.get("url_citation_rate_score"),
+            "url_details": row.get("url_details") or [],
+        }
+        for row in violets.to_dict("records")
+    ]
+
+
+def build_url_citation_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """Overall pct_cited / pct_accessible / pct_accurate across all VIOLETS turns."""
+    stats = compute_url_aggregate_stats(_violets_url_turns(df))
+    return pd.DataFrame([stats])
+
+
+def build_url_citation_by_category(df: pd.DataFrame) -> pd.DataFrame:
+    """Same aggregate stats, broken out per question category."""
+    rows = []
+    violets = df[df["model"] == "VIOLETS"]
+    for cat in df["category"].cat.categories:
+        grp = violets[violets["category"] == cat]
+        if grp.empty:
+            continue
+        stats = compute_url_aggregate_stats(_violets_url_turns(grp))
+        rows.append({"category": cat, **stats})
+    return pd.DataFrame(rows)
+
+
+def build_url_flagged_table(df: pd.DataFrame, accuracy_threshold: int = 60) -> pd.DataFrame:
+    """
+    VIOLETS-cited URLs whose content didn't clearly support the claim
+    (accuracy < threshold), for human review — mirrors build_flagged_table()
+    but at the individual-URL level rather than the whole-turn level.
+    """
+    violets = df[df["model"] == "VIOLETS"]
+    rows = []
+    for _, r in violets.iterrows():
+        for d in (r.get("url_details") or []):
+            acc = d.get("accuracy")
+            if acc is not None and acc < accuracy_threshold:
+                rows.append(
+                    {
+                        "conversation_id": r["conversation_id"],
+                        "category": r["category"],
+                        "turn": r["turn"],
+                        "url": d.get("url"),
+                        "accessibility": d.get("accessibility"),
+                        "accuracy": acc,
+                        "note": d.get("note", ""),
+                    }
+                )
+    return pd.DataFrame(rows)
 
 
 # ============================================================================
@@ -830,6 +907,39 @@ def run_analysis(input_path: Path, output_dir: Path) -> None:
         )
     else:
         print(f"No VIOLETS turns below threshold ({REVIEW_THRESHOLD}).")
+
+    # URL citation quality (RQ1.2 — Grounding and Citation Reliability).
+    # Only present if the input JSONL was produced after the RQ1.2 grounding
+    # pipeline fix; older files won't have these columns.
+    if "url_citation_rate_score" in df.columns:
+        url_summary = build_url_citation_summary(df)
+        url_summary.to_csv(output_dir / "url_citation_summary.csv", index=False)
+
+        url_by_cat = build_url_citation_by_category(df)
+        if not url_by_cat.empty:
+            url_by_cat.to_csv(output_dir / "url_citation_by_category.csv", index=False)
+
+        url_flagged = build_url_flagged_table(df)
+        if not url_flagged.empty:
+            url_flagged.to_csv(
+                output_dir / "url_citations_flagged_for_review.csv", index=False
+            )
+            print(
+                f"Flagged {len(url_flagged)} low-accuracy URL citation(s) "
+                f"→ url_citations_flagged_for_review.csv"
+            )
+
+        s = url_summary.iloc[0]
+        print(
+            f"URL citation summary: pct_cited={s['pct_cited']}%  "
+            f"pct_accessible={s['pct_accessible']}%  pct_accurate={s['pct_accurate']}%  "
+            f"({s['n_urls_total']} URLs across {s['n_turns']} VIOLETS turns)"
+        )
+    else:
+        print(
+            "No url_citation_rate_score column in input — skipping RQ1.2 "
+            "citation-quality summary (this JSONL predates the grounding-pipeline fix)."
+        )
 
     print("RQ1.1 mixed-effects analysis complete.")
     print(f"Input:      {input_path}")

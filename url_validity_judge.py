@@ -59,6 +59,7 @@ For EACH URL in the list:
 Use web search ONLY on these authoritative domains:
   • elections.maryland.gov
   • *.montgomerycountymd.gov/elections*
+  • box.com (Maryland State Board of Elections document hosting, e.g. mdsbe.app.box.com)
 
 ── Scoring rules ─────────────────────────────────────────────────────────────
   citation_rate_score   — 100 if the response contains ≥1 URL, else 0.
@@ -181,7 +182,8 @@ class URLValidityJudge:
             f"Original user question (context only):\n{query}\n\n"
             f"Chatbot response to evaluate:\n{response}\n\n"
             f"URLs extracted from the response:\n{url_list_str}\n\n"
-            f"Search elections.maryland.gov and montgomerycountymd.gov/elections "
+            f"Search elections.maryland.gov, montgomerycountymd.gov/elections, and "
+            f"box.com (Maryland State Board of Elections document hosting) "
             f"to verify whether each URL's content supports the claim it was cited for, "
             f"then output the JSON score."
         )
@@ -197,6 +199,7 @@ class URLValidityJudge:
                                 "elections.maryland.gov",
                                 "www.montgomerycountymd.gov",
                                 "montgomerycountymd.gov",
+                                "box.com",
                             ]
                         },
                     }

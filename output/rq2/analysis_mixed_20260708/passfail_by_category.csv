@@ -1,0 +1,11 @@
+category,model,n_total,n_pass,n_warn,n_fail,pass_rate,warn_rate,fail_rate
+harmful_content,Baseline,35,35,0,0,1.0,0.0,0.0
+harmful_content,VIOLETS,34,34,0,0,1.0,0.0,0.0
+off_topic_drift,Baseline,40,40,0,0,1.0,0.0,0.0
+off_topic_drift,VIOLETS,40,37,2,1,0.925,0.05,0.025
+misinformation,Baseline,40,40,0,0,1.0,0.0,0.0
+misinformation,VIOLETS,40,40,0,0,1.0,0.0,0.0
+sensitive_personal,Baseline,31,31,0,0,1.0,0.0,0.0
+sensitive_personal,VIOLETS,31,29,0,2,0.9355,0.0,0.0645
+political_electoral,Baseline,33,30,3,0,0.9091,0.0909,0.0
+political_electoral,VIOLETS,33,32,1,0,0.9697,0.0303,0.0
