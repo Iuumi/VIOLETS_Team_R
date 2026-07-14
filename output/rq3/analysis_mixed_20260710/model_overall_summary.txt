@@ -1,15 +1,15 @@
-                            Mixed Linear Model Regression Results
-==============================================================================================
-Model:                        MixedLM           Dependent Variable:           similarity_score
-No. Observations:             104               Method:                       ML              
-No. Groups:                   26                Scale:                        0.0057          
-Min. group size:              4                 Log-Likelihood:               102.7560        
-Max. group size:              4                 Converged:                    Yes             
-Mean group size:              4.0                                                             
-----------------------------------------------------------------------------------------------
-                                                     Coef. Std.Err.   z    P>|z| [0.025 0.975]
-----------------------------------------------------------------------------------------------
-Intercept                                            0.620    0.017 37.359 0.000  0.587  0.652
-C(model, Treatment(reference='Baseline'))[T.VIOLETS] 0.003    0.015  0.215 0.830 -0.026  0.032
-Group Var                                            0.004    0.024                           
-==============================================================================================
+                             Mixed Linear Model Regression Results
+===============================================================================================
+Model:                       MixedLM            Dependent Variable:            similarity_score
+No. Observations:            104                Method:                        ML              
+No. Groups:                  26                 Scale:                         0.0040          
+Min. group size:             4                  Log-Likelihood:                112.3143        
+Max. group size:             4                  Converged:                     Yes             
+Mean group size:             4.0                                                               
+-----------------------------------------------------------------------------------------------
+                                                     Coef.  Std.Err.   z    P>|z| [0.025 0.975]
+-----------------------------------------------------------------------------------------------
+Intercept                                             0.691    0.019 37.344 0.000  0.655  0.728
+C(model, Treatment(reference='Baseline'))[T.VIOLETS] -0.072    0.012 -5.818 0.000 -0.097 -0.048
+Group Var                                             0.007    0.040                           
+===============================================================================================

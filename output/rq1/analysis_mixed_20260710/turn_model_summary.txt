@@ -1,21 +1,21 @@
                                                    Mixed Linear Model Regression Results
-============================================================================================================================================
-Model:                                        MixedLM                           Dependent Variable:                           veracity_score
-No. Observations:                             400                               Method:                                       ML            
-No. Groups:                                   50                                Scale:                                        349.0930      
-Min. group size:                              8                                 Log-Likelihood:                               -1748.3106    
-Max. group size:                              8                                 Converged:                                    Yes           
-Mean group size:                              8.0                                                                                           
---------------------------------------------------------------------------------------------------------------------------------------------
-                                                                                                 Coef.  Std.Err.   z    P>|z|  [0.025 0.975]
---------------------------------------------------------------------------------------------------------------------------------------------
-Intercept                                                                                        77.200    2.719 28.391 0.000  71.871 82.529
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                              6.940    3.737  1.857 0.063  -0.384 14.264
-C(turn_str, Treatment(reference='0'))[T.1]                                                       -8.160    3.737 -2.184 0.029 -15.484 -0.836
-C(turn_str, Treatment(reference='0'))[T.2]                                                       -9.380    3.737 -2.510 0.012 -16.704 -2.056
-C(turn_str, Treatment(reference='0'))[T.3]                                                      -12.200    3.737 -3.265 0.001 -19.524 -4.876
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.1]   0.380    5.285  0.072 0.943  -9.978 10.738
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.2]   3.920    5.285  0.742 0.458  -6.438 14.278
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.3]   0.780    5.285  0.148 0.883  -9.578 11.138
-Group Var                                                                                        20.601    0.735                            
-============================================================================================================================================
+===========================================================================================================================================
+Model:                                       MixedLM                           Dependent Variable:                           veracity_score
+No. Observations:                            360                               Method:                                       ML            
+No. Groups:                                  45                                Scale:                                        324.1941      
+Min. group size:                             8                                 Log-Likelihood:                               -1561.2307    
+Max. group size:                             8                                 Converged:                                    Yes           
+Mean group size:                             8.0                                                                                           
+-------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                Coef.  Std.Err.   z    P>|z|  [0.025 0.975]
+-------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                                       74.756    2.774 26.950 0.000  69.319 80.192
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                             7.844    3.796  2.067 0.039   0.405 15.284
+C(turn_str, Treatment(reference='0'))[T.1]                                                       0.467    3.796  0.123 0.902  -6.973  7.906
+C(turn_str, Treatment(reference='0'))[T.2]                                                      -2.400    3.796 -0.632 0.527  -9.840  5.040
+C(turn_str, Treatment(reference='0'))[T.3]                                                       0.533    3.796  0.141 0.888  -6.906  7.973
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.1] -1.689    5.368 -0.315 0.753 -12.210  8.833
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.2] -1.756    5.368 -0.327 0.744 -12.277  8.766
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.3] -4.356    5.368 -0.811 0.417 -14.877  6.166
+Group Var                                                                                       22.039    0.783                            
+===========================================================================================================================================

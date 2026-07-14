@@ -299,13 +299,17 @@ def normal_cdf(x: float) -> float:
 # ============================================================================
 
 
-def build_table1_overall(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
+def build_table1_overall(df: pd.DataFrame, outcome: str = "similarity_score") -> Tuple[pd.DataFrame, object]:
     """
     Table 1: Overall model effect from:
-        similarity_score ~ model + (1 | faq_id)
+        {outcome} ~ model + (1 | faq_id)
+
+    `outcome` defaults to the primary embedding model's similarity_score
+    column, but can be pointed at a secondary embedding's column (e.g.
+    "similarity_score_2nd") to fit the identical model for comparison.
     """
     result = fit_mixedlm(
-        "similarity_score ~ C(model, Treatment(reference='Baseline'))",
+        f"{outcome} ~ C(model, Treatment(reference='Baseline'))",
         df=df,
         group_col="faq_id",
     )
@@ -331,10 +335,14 @@ def build_table1_overall(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
     return table, result
 
 
-def build_table2_category(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
+def build_table2_category(df: pd.DataFrame, outcome: str = "similarity_score") -> Tuple[pd.DataFrame, object]:
     """
     Table 2: Model effect within each category from:
-        similarity_score ~ model * category + (1 | faq_id)
+        {outcome} ~ model * category + (1 | faq_id)
+
+    `outcome` defaults to the primary embedding model's similarity_score
+    column, but can be pointed at a secondary embedding's column (e.g.
+    "similarity_score_2nd") to fit the identical model for comparison.
     """
     if len(df["category"].cat.categories) == 0:
         raise ValueError("No category levels found.")
@@ -342,7 +350,7 @@ def build_table2_category(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
     ref_cat = df["category"].cat.categories[0]
 
     formula = (
-        "similarity_score ~ "
+        f"{outcome} ~ "
         "C(model, Treatment(reference='Baseline')) * "
         f"C(category, Treatment(reference='{ref_cat}'))"
     )
@@ -478,26 +486,6 @@ def simple_querytype_model_summary(df: pd.DataFrame) -> pd.DataFrame:
 # ============================================================================
 
 
-def _desc_stats(df: pd.DataFrame, group_col: str, outcome: str) -> pd.DataFrame:
-    """Mean ± 95% CI per model within each level of group_col."""
-    rows = []
-    for (grp, model), sub in df.groupby([group_col, "model"], observed=True):
-        n = len(sub)
-        m = sub[outcome].mean()
-        se = sub[outcome].sem()
-        rows.append(
-            {
-                group_col: grp,
-                "model": model,
-                "mean": m,
-                "ci_low": m - 1.96 * se,
-                "ci_high": m + 1.96 * se,
-                "n": n,
-            }
-        )
-    return pd.DataFrame(rows)
-
-
 _CAT_LABELS_RQ3 = {
     "voter_registration": "voter registration",
     "requesting_a_ballot": "requesting ballot",
@@ -521,177 +509,174 @@ def _sig_stars(p: float) -> str:
     return "*"
 
 
-def build_combined_figure(
+def build_coefficient_figure(
     df: pd.DataFrame,
     table1: pd.DataFrame,
     table2: pd.DataFrame,
     output_path: Path,
-    outcome: str = "similarity_score",
-    ylabel: str = "Mean semantic similarity",
-    ymin: float = 0.0,
-    ymax: float = 1.0,
-    title: str = "RQ3: FAQ Alignment — VIOLETS vs. Baseline",
+    xlabel: str = "VIOLETS − Baseline (semantic similarity)",
+    title: str = "RQ3: FAQ Alignment — VIOLETS vs. Baseline (estimated effect)",
 ) -> None:
     """
-    Two-panel grouped bar chart optimized for poster display:
-      (A) Overall  (B) By FAQ Category
+    Two-panel coefficient (forest) plot:
+      (A) Overall effect   (B) Effect by FAQ Category
 
-    - Significance asterisks drawn inside each panel above bar pairs
-    - Legend shown only in Panel A
-    - Category labels shortened via _CAT_LABELS_RQ3
-    - y-axis spans [ymin, ymax] (default the full 0-1 similarity range)
-    - Colors: Baseline = grey (#9E9E9E), VIOLETS = violet (#7B2FBE)
+    Each point is the VIOLETS-minus-Baseline estimate from the mixed-effects
+    model (table1/table2), with a 95% CI whisker; the dashed vertical line
+    at 0 marks "no difference". This plots exactly the quantity the
+    significance test is about, so there is only one interval to read per
+    row — unlike a grouped bar chart with one CI per model, where two
+    overlapping per-group CIs can visually look non-significant even when
+    the (correctly, paired/clustered) tested difference is significant.
     """
-    COLORS = {"Baseline": "#9E9E9E", "VIOLETS": "#7B2FBE"}
-    FS = {"title": 20, "label": 17, "tick": 15, "legend": 15, "stars": 17}
-    BAR_W = 0.38
-    CAP = 6
-    ERR_KW = {"elinewidth": 2.0, "ecolor": "#333333"}
-    STAR_PAD = (ymax - ymin) * 0.03
+    COLOR = "#7B2FBE"
+    FS = {"title": 20, "label": 16, "tick": 14, "stars": 15}
+    CAP = 5
+    ERR_KW = {"elinewidth": 2.0, "ecolor": COLOR, "capthick": 2.0}
 
-    overall_desc = _desc_stats(df, "model", outcome).set_index("model")
-    cat_desc = _desc_stats(df, "category", outcome)
-
-    # Panel B carries 9 FAQ categories (vs. 5 threat/question categories in
-    # RQ1/RQ2), so it needs proportionally more width to avoid crowding.
-    fig, axes = plt.subplots(
-        1, 2, figsize=(17, 6.5), gridspec_kw={"width_ratios": [1, 3.6]}
-    )
-    fig.subplots_adjust(wspace=0.25, bottom=0.30)
-
-    def _annotate_stars(ax, x_center, top_y, stars):
-        """Place significance marker just above the tallest error bar."""
-        if stars == "ns":
-            return
-        ax.text(
-            x_center,
-            top_y + STAR_PAD,
-            stars,
-            ha="center",
-            va="bottom",
-            fontsize=FS["stars"],
-            color="#222222",
-        )
-
-    def _bar_group(
-        ax,
-        index_vals,
-        groups_data,
-        label_col,
-        x_labels,
-        p_table,
-        p_col,
-        rotate=0,
-        ha="center",
-        show_legend=False,
-    ):
-        x = np.arange(len(index_vals))
-        ci_hi_by_group = {}  # track tallest CI top per group for star placement
-
-        for j, model in enumerate(["Baseline", "VIOLETS"]):
-            sub = groups_data[groups_data["model"] == model].set_index(label_col)
-            means = [
-                sub.loc[v, "mean"] if v in sub.index else np.nan for v in index_vals
-            ]
-            ci_lo = [
-                sub.loc[v, "ci_low"] if v in sub.index else np.nan for v in index_vals
-            ]
-            ci_hi = [
-                sub.loc[v, "ci_high"] if v in sub.index else np.nan for v in index_vals
-            ]
-            ax.bar(
-                x + j * BAR_W,
-                means,
-                BAR_W,
-                color=COLORS[model],
-                label=model,
-                yerr=[
-                    [m - lo for m, lo in zip(means, ci_lo)],
-                    [hi - m for m, hi in zip(means, ci_hi)],
-                ],
-                capsize=CAP,
-                error_kw=ERR_KW,
-                edgecolor="white",
-                linewidth=0.5,
-            )
-            for i, (ci_top) in enumerate(ci_hi):
-                ci_hi_by_group[i] = max(ci_hi_by_group.get(i, ymin), ci_top)
-
-        # Significance stars per group
-        p_lookup = (
-            p_table.set_index(p_col)["p_value"] if p_col in p_table.columns else {}
-        )
-        for i, val in enumerate(index_vals):
-            p = p_lookup.get(val, np.nan) if hasattr(p_lookup, "get") else np.nan
-            stars = _sig_stars(p)
-            _annotate_stars(ax, x[i] + BAR_W / 2, ci_hi_by_group.get(i, ymin), stars)
-
-        ax.set_xticks(x + BAR_W / 2)
-        ax.set_xticklabels(x_labels, rotation=rotate, ha=ha, fontsize=FS["tick"])
-        ax.set_ylim(ymin, ymax + (ymax - ymin) * 0.10)
-        ax.yaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
-        ax.set_axisbelow(True)
-        ax.spines[["top", "right"]].set_visible(False)
-        if show_legend:
-            ax.legend(fontsize=FS["legend"], framealpha=0.7)
-
-    # ── Panel A: Overall ──────────────────────────────────────────────────
-    ax = axes[0]
-    max_ci_top = ymin
-    for i, model in enumerate(["Baseline", "VIOLETS"]):
-        row = overall_desc.loc[model]
-        ax.bar(
-            i,
-            row["mean"],
-            BAR_W * 1.4,
-            color=COLORS[model],
-            label=model,
-            yerr=[[row["mean"] - row["ci_low"]], [row["ci_high"] - row["mean"]]],
-            capsize=CAP,
-            error_kw=ERR_KW,
-            edgecolor="white",
-            linewidth=0.5,
-        )
-        max_ci_top = max(max_ci_top, row["ci_high"])
-    _annotate_stars(ax, 0.5, max_ci_top, _sig_stars(table1["p_value"].iloc[0]))
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels(["Baseline", "VIOLETS"], fontsize=FS["tick"])
-    ax.set_title("(A) Overall", fontsize=FS["title"], fontweight="bold")
-    ax.set_ylabel(ylabel, fontsize=FS["label"])
-    ax.set_ylim(ymin, ymax + (ymax - ymin) * 0.10)
-    ax.legend(fontsize=FS["legend"], framealpha=0.7)
-    ax.yaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
-    ax.set_axisbelow(True)
-    ax.spines[["top", "right"]].set_visible(False)
-
-    # ── Panel B: By Category ──────────────────────────────────────────────
     categories = df["category"].cat.categories.tolist()
     cat_labels = [_CAT_LABELS_RQ3.get(c, c) for c in categories]
-    _bar_group(
-        axes[1],
-        categories,
-        cat_desc,
-        "category",
-        cat_labels,
-        p_table=table2,
-        p_col="category",
-        rotate=40,
-        ha="right",
-        show_legend=False,
+    cat2 = table2.set_index("category").loc[categories]
+
+    # Panel B carries 9 FAQ categories (vs. 5 threat/question categories in
+    # RQ1/RQ2), so it needs proportionally more height to avoid crowding.
+    fig, axes = plt.subplots(
+        2, 1, figsize=(10, 9.5), gridspec_kw={"height_ratios": [1, len(categories)]}
+    )
+    fig.subplots_adjust(hspace=0.45, left=0.3)
+
+    def _forest_panel(ax, labels, est, lo, hi, p_values):
+        y = np.arange(len(labels))
+        ax.axvline(0, color="#999999", linewidth=1.2, linestyle="--", zorder=1)
+        ax.errorbar(
+            est, y,
+            xerr=[np.array(est) - np.array(lo), np.array(hi) - np.array(est)],
+            fmt="o", color=COLOR, markersize=8, capsize=CAP, **ERR_KW, zorder=3,
+        )
+        for yi, hi_i, p in zip(y, hi, p_values):
+            stars = _sig_stars(p)
+            if stars != "ns":
+                ax.text(hi_i, yi, f"  {stars}", va="center", ha="left",
+                         fontsize=FS["stars"], color="#222222", fontweight="bold")
+        ax.set_yticks(y)
+        ax.set_yticklabels(labels, fontsize=FS["tick"])
+        ax.invert_yaxis()
+        ax.set_xlabel(xlabel, fontsize=FS["label"])
+        ax.xaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
+        ax.set_axisbelow(True)
+        ax.spines[["top", "right"]].set_visible(False)
+
+    # ── Panel A: Overall ──────────────────────────────────────────────────
+    row = table1.iloc[0]
+    _forest_panel(
+        axes[0], ["Overall"], [row["estimate"]], [row["ci_low"]], [row["ci_high"]],
+        [row["p_value"]],
+    )
+    axes[0].set_title("(A) Overall", fontsize=FS["title"], fontweight="bold", loc="left")
+
+    # ── Panel B: By Category ──────────────────────────────────────────────
+    _forest_panel(
+        axes[1], cat_labels, cat2["estimate"].tolist(), cat2["ci_low"].tolist(),
+        cat2["ci_high"].tolist(), cat2["p_value"].tolist(),
     )
     axes[1].set_title(
-        "(B) By FAQ Category", fontsize=FS["title"], fontweight="bold"
+        "(B) By FAQ Category", fontsize=FS["title"], fontweight="bold", loc="left"
     )
 
-    fig.suptitle(title, fontsize=20, fontweight="bold", y=1.03)
+    fig.suptitle(title, fontsize=20, fontweight="bold", y=1.01)
     fig.text(
-        0.5,
-        -0.08,
-        "Bars = mean ± 95% CI  |  * p < .05  ** p < .01  *** p < .001"
-        "  |  p-values from linear mixed-effects model (random intercept per faq_id)",
-        ha="center",
-        fontsize=12,
-        color="#555555",
+        0.5, -0.02,
+        "Points = mixed-model estimate of VIOLETS − Baseline, whiskers = 95% CI  |  "
+        "dashed line = no difference  |  * p < .05  ** p < .01  *** p < .001",
+        ha="center", fontsize=12, color="#555555",
+    )
+
+    plt.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def build_multi_embedding_coefficient_figure(
+    df: pd.DataFrame,
+    embeddings: list[dict],
+    output_path: Path,
+    xlabel: str = "VIOLETS − Baseline (semantic similarity)",
+    title: str = "RQ3: FAQ Alignment — VIOLETS vs. Baseline, by embedding model",
+) -> None:
+    """
+    Same two-panel coefficient (forest) plot as build_coefficient_figure, but
+    overlays one point+CI series per embedding model instead of relying on a
+    single one. RQ3 has no LLM judge to cross-check (similarity_score is a
+    deterministic cosine similarity, not a judgment call), so the analogous
+    robustness check here is re-embedding with an independent model
+    (openai/text-embedding-3-small vs. qwen/qwen3-embedding-8b) rather than a
+    second judge — if both embeddings agree on which categories are
+    significant, the finding isn't an artifact of one embedding space.
+
+    `embeddings` is a list of dicts, each:
+        {"label": str, "color": str, "table1": DataFrame, "table2": DataFrame}
+    """
+    FS = {"title": 20, "label": 16, "tick": 14, "legend": 13, "stars": 13}
+    CAP = 5
+    n_emb = len(embeddings)
+    offsets = np.linspace(-0.16, 0.16, n_emb) if n_emb > 1 else [0.0]
+
+    categories = df["category"].cat.categories.tolist()
+    cat_labels = [_CAT_LABELS_RQ3.get(c, c) for c in categories]
+
+    fig, axes = plt.subplots(
+        2, 1, figsize=(10, 9.5), gridspec_kw={"height_ratios": [1, len(categories)]}
+    )
+    fig.subplots_adjust(hspace=0.45, left=0.3)
+
+    def _forest_panel(ax, labels, emb_rows_list):
+        y_base = np.arange(len(labels))
+        ax.axvline(0, color="#999999", linewidth=1.2, linestyle="--", zorder=1)
+        for emb, offset, rows in zip(embeddings, offsets, emb_rows_list):
+            y = y_base + offset
+            est = rows["estimate"].tolist()
+            lo = rows["ci_low"].tolist()
+            hi = rows["ci_high"].tolist()
+            ax.errorbar(
+                est, y,
+                xerr=[np.array(est) - np.array(lo), np.array(hi) - np.array(est)],
+                fmt="o", color=emb["color"], markersize=7, capsize=CAP,
+                elinewidth=2.0, ecolor=emb["color"], capthick=2.0, zorder=3,
+                label=emb["label"],
+            )
+            for yi, hi_i, p in zip(y, hi, rows["p_value"].tolist()):
+                stars = _sig_stars(p)
+                if stars != "ns":
+                    ax.text(hi_i, yi, f"  {stars}", va="center", ha="left",
+                             fontsize=FS["stars"], color=emb["color"], fontweight="bold")
+        ax.set_yticks(y_base)
+        ax.set_yticklabels(labels, fontsize=FS["tick"])
+        ax.invert_yaxis()
+        ax.set_xlabel(xlabel, fontsize=FS["label"])
+        ax.xaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
+        ax.set_axisbelow(True)
+        ax.spines[["top", "right"]].set_visible(False)
+
+    # ── Panel A: Overall ──────────────────────────────────────────────────
+    _forest_panel(axes[0], ["Overall"], [e["table1"] for e in embeddings])
+    axes[0].set_title("(A) Overall", fontsize=FS["title"], fontweight="bold", loc="left")
+
+    # ── Panel B: By Category ──────────────────────────────────────────────
+    emb_cat_rows = [e["table2"].set_index("category").loc[categories] for e in embeddings]
+    _forest_panel(axes[1], cat_labels, emb_cat_rows)
+    axes[1].set_title(
+        "(B) By FAQ Category", fontsize=FS["title"], fontweight="bold", loc="left"
+    )
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, fontsize=FS["legend"], framealpha=0.9,
+               loc="upper center", bbox_to_anchor=(0.5, 1.05), ncol=n_emb)
+
+    fig.suptitle(title, fontsize=20, fontweight="bold", y=1.1)
+    fig.text(
+        0.5, -0.02,
+        "Points = mixed-model estimate of VIOLETS − Baseline per embedding model, whiskers = 95% CI  |  "
+        "dashed line = no difference  |  * p < .05  ** p < .01  *** p < .001",
+        ha="center", fontsize=12, color="#555555",
     )
 
     plt.savefig(output_path, dpi=200, bbox_inches="tight")
@@ -751,7 +736,7 @@ def run_analysis(input_path: Path, output_dir: Path) -> None:
     )
 
     # Figure
-    build_combined_figure(
+    build_coefficient_figure(
         df=df,
         table1=table1,
         table2=table2,

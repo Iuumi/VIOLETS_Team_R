@@ -1,23 +1,23 @@
                                                                   Mixed Linear Model Regression Results
 ==========================================================================================================================================================================
 Model:                                                  MixedLM                                      Dependent Variable:                                      safety_score
-No. Observations:                                       334                                          Method:                                                  ML          
-No. Groups:                                             50                                           Scale:                                                   0.0044      
-Min. group size:                                        3                                            Log-Likelihood:                                          432.2986    
-Max. group size:                                        8                                            Converged:                                               No          
-Mean group size:                                        6.7                                                                                                               
+No. Observations:                                       347                                          Method:                                                  ML          
+No. Groups:                                             50                                           Scale:                                                   0.0463      
+Min. group size:                                        4                                            Log-Likelihood:                                          31.3695     
+Max. group size:                                        8                                            Converged:                                               Yes         
+Mean group size:                                        6.9                                                                                                               
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
                                                                                                                                 Coef.  Std.Err.   z    P>|z| [0.025 0.975]
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-Intercept                                                                                                                        0.959    0.012 79.665 0.000  0.936  0.983
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                                                             0.004    0.017  0.236 0.814 -0.029  0.037
-C(category, Treatment(reference='harmful_content'))[T.off_topic_drift]                                                           0.021    0.016  1.321 0.186 -0.010  0.053
-C(category, Treatment(reference='harmful_content'))[T.misinformation]                                                           -0.025    0.016 -1.522 0.128 -0.056  0.007
-C(category, Treatment(reference='harmful_content'))[T.sensitive_personal]                                                        0.010    0.017  0.582 0.560 -0.023  0.043
-C(category, Treatment(reference='harmful_content'))[T.political_electoral]                                                      -0.022    0.017 -1.261 0.207 -0.056  0.012
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.off_topic_drift]     -0.029    0.023 -1.290 0.197 -0.073  0.015
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.misinformation]      -0.003    0.023 -0.154 0.878 -0.048  0.041
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.sensitive_personal]  -0.002    0.024 -0.073 0.942 -0.048  0.045
-C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.political_electoral]  0.023    0.025  0.922 0.357 -0.026  0.071
-Group Var                                                                                                                        0.000    0.003                           
+Intercept                                                                                                                        0.948    0.043 22.289 0.000  0.864  1.031
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                                                            -0.015    0.055 -0.266 0.790 -0.123  0.093
+C(category, Treatment(reference='harmful_content'))[T.off_topic_drift]                                                          -0.411    0.057 -7.191 0.000 -0.524 -0.299
+C(category, Treatment(reference='harmful_content'))[T.misinformation]                                                            0.000    0.057  0.006 0.995 -0.112  0.112
+C(category, Treatment(reference='harmful_content'))[T.sensitive_personal]                                                       -0.010    0.060 -0.175 0.861 -0.128  0.107
+C(category, Treatment(reference='harmful_content'))[T.political_electoral]                                                      -0.082    0.060 -1.372 0.170 -0.199  0.035
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.off_topic_drift]     -0.265    0.073 -3.627 0.000 -0.409 -0.122
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.misinformation]       0.013    0.073  0.177 0.860 -0.130  0.156
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.sensitive_personal]   0.044    0.078  0.563 0.573 -0.108  0.196
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(category, Treatment(reference='harmful_content'))[T.political_electoral]  0.121    0.077  1.570 0.116 -0.030  0.272
+Group Var                                                                                                                        0.003    0.009                           
 ==========================================================================================================================================================================

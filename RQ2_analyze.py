@@ -403,18 +403,22 @@ def contrast_est_ci(
 # ============================================================================
 
 
-def build_table1_overall(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
+def build_table1_overall(df: pd.DataFrame, outcome: str = "safety_score") -> Tuple[pd.DataFrame, object]:
     """
     Table 1: Overall model effect.
 
     Model:
-        safety_score ~ model + (1 | conversation_id)
+        {outcome} ~ model + (1 | conversation_id)
 
     Quantity of interest:
         effect of VIOLETS relative to Baseline
+
+    `outcome` defaults to the primary judge's safety_score column, but can be
+    pointed at a secondary judge's column (e.g. "safety_score_2nd") to fit
+    the identical model on an independent judge's scores for comparison.
     """
     result = fit_mixedlm(
-        "safety_score ~ C(model, Treatment(reference='Baseline'))",
+        f"{outcome} ~ C(model, Treatment(reference='Baseline'))",
         df=df,
         group_col="conversation_id",
     )
@@ -425,7 +429,7 @@ def build_table1_overall(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
     # Standardized effect size (simple reporting convenience)
     # This is not the only possible effect size, but it is a readable
     # scale-free companion for the unstandardized coefficient.
-    outcome_sd = float(df["safety_score"].std(ddof=1))
+    outcome_sd = float(df[outcome].std(ddof=1))
     std_effect = est / outcome_sd if outcome_sd > 0 else np.nan
 
     table = pd.DataFrame(
@@ -447,18 +451,22 @@ def build_table1_overall(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
     return table, result
 
 
-def build_table2_category(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
+def build_table2_category(df: pd.DataFrame, outcome: str = "safety_score") -> Tuple[pd.DataFrame, object]:
     """
     Table 2: Category-specific model effects.
 
     Model:
-        safety_score ~ model * category + (1 | conversation_id)
+        {outcome} ~ model * category + (1 | conversation_id)
 
     Reference category:
         the first level of df["category"]
 
     Category-specific effect:
         beta_model + beta_model:category_k
+
+    `outcome` defaults to the primary judge's safety_score column, but can be
+    pointed at a secondary judge's column (e.g. "safety_score_2nd") to fit
+    the identical model on an independent judge's scores for comparison.
     """
     if len(df["category"].cat.categories) == 0:
         raise ValueError("No category levels available.")
@@ -466,14 +474,14 @@ def build_table2_category(df: pd.DataFrame) -> Tuple[pd.DataFrame, object]:
     ref_cat = df["category"].cat.categories[0]
 
     formula = (
-        "safety_score ~ "
+        f"{outcome} ~ "
         "C(model, Treatment(reference='Baseline')) * "
         f"C(category, Treatment(reference='{ref_cat}'))"
     )
     result = fit_mixedlm(formula, df=df, group_col="conversation_id")
 
     model_coef = "C(model, Treatment(reference='Baseline'))[T.VIOLETS]"
-    outcome_sd = float(df["safety_score"].std(ddof=1))
+    outcome_sd = float(df[outcome].std(ddof=1))
 
     rows = []
     for cat in df["category"].cat.categories:
@@ -724,26 +732,6 @@ def build_violation_table(df: pd.DataFrame) -> pd.DataFrame:
 # ============================================================================
 
 
-def _desc_stats(df: pd.DataFrame, group_col: str, outcome: str) -> pd.DataFrame:
-    """Mean ± 95% CI per model within each level of group_col."""
-    rows = []
-    for (grp, model), sub in df.groupby([group_col, "model"], observed=True):
-        n = len(sub)
-        m = sub[outcome].mean()
-        se = sub[outcome].sem()
-        rows.append(
-            {
-                group_col: grp,
-                "model": model,
-                "mean": m,
-                "ci_low": m - 1.96 * se,
-                "ci_high": m + 1.96 * se,
-                "n": n,
-            }
-        )
-    return pd.DataFrame(rows)
-
-
 _CAT_LABELS_RQ2 = {
     "harmful_content": "harmful\ncontent",
     "off_topic_drift": "off-topic\ndrift",
@@ -763,173 +751,248 @@ def _sig_stars(p: float) -> str:
     return "*"
 
 
-def build_combined_figure(
+def build_coefficient_figure(
     df: pd.DataFrame,
     table1: pd.DataFrame,
     table2: pd.DataFrame,
-    table3: pd.DataFrame,
     output_path: Path,
-    outcome: str = "safety_score",
-    ylabel: str = "Mean safety score",
-    ymin: float = 0.5,
-    ymax: float = 1.0,
-    title: str = "RQ2: Safety Scores — VIOLETS vs. Baseline",
+    xlabel: str = "VIOLETS − Baseline (safety score)",
+    title: str = "RQ2: Safety — VIOLETS vs. Baseline (estimated effect)",
 ) -> None:
     """
-    Two-panel grouped bar chart optimized for poster display:
-      (A) Overall  (B) By Threat Category
+    Two-panel coefficient (forest) plot:
+      (A) Overall effect   (B) Effect by Threat Category
 
-    - Significance asterisks drawn inside each panel above bar pairs
-    - Legend shown only in Panel A
-    - Category labels shortened via _CAT_LABELS_RQ2
-    - y-axis starts at ymin (default 0.5) so differences are visually legible
-    - Colors: Baseline = grey (#9E9E9E), VIOLETS = violet (#7B2FBE)
+    Each point is the VIOLETS-minus-Baseline estimate from the mixed-effects
+    model (table1/table2), with a 95% CI whisker; the dashed vertical line
+    at 0 marks "no difference". This plots exactly the quantity the
+    significance test is about, so there is only one interval to read per
+    row — unlike a grouped bar chart with one CI per model, where two
+    overlapping per-group CIs can visually look non-significant even when
+    the (correctly, paired/clustered) tested difference is significant.
     """
-    COLORS = {"Baseline": "#9E9E9E", "VIOLETS": "#7B2FBE"}
-    FS = {"title": 20, "label": 17, "tick": 15, "legend": 15, "stars": 17}
-    BAR_W = 0.38
-    CAP = 6
-    ERR_KW = {"elinewidth": 2.0, "ecolor": "#333333"}
-    STAR_PAD = (ymax - ymin) * 0.03
+    COLOR = "#7B2FBE"
+    FS = {"title": 20, "label": 16, "tick": 15, "stars": 15}
+    CAP = 5
+    ERR_KW = {"elinewidth": 2.0, "ecolor": COLOR, "capthick": 2.0}
 
-    overall_desc = _desc_stats(df, "model", outcome).set_index("model")
-    cat_desc = _desc_stats(df, "category", outcome)
+    categories = df["category"].cat.categories.tolist()
+    cat_labels = [_CAT_LABELS_RQ2.get(c, c).replace("\n", " ") for c in categories]
+    cat2 = table2.set_index("category").loc[categories]
 
     fig, axes = plt.subplots(
-        1, 2, figsize=(13, 6.5), gridspec_kw={"width_ratios": [1, 2.8]}
+        2, 1, figsize=(10, 7.5), gridspec_kw={"height_ratios": [1, len(categories)]}
     )
-    fig.subplots_adjust(wspace=0.35, bottom=0.15)
+    fig.subplots_adjust(hspace=0.55, left=0.28)
 
-    def _annotate_stars(ax, x_center, top_y, stars):
-        if stars == "ns":
-            return
-        ax.text(
-            x_center,
-            top_y + STAR_PAD,
-            stars,
-            ha="center",
-            va="bottom",
-            fontsize=FS["stars"],
-            color="#222222",
+    def _forest_panel(ax, labels, est, lo, hi, p_values):
+        y = np.arange(len(labels))
+        ax.axvline(0, color="#999999", linewidth=1.2, linestyle="--", zorder=1)
+        ax.errorbar(
+            est, y,
+            xerr=[np.array(est) - np.array(lo), np.array(hi) - np.array(est)],
+            fmt="o", color=COLOR, markersize=8, capsize=CAP, **ERR_KW, zorder=3,
         )
-
-    def _bar_group(
-        ax,
-        index_vals,
-        groups_data,
-        label_col,
-        x_labels,
-        p_table,
-        p_col,
-        rotate=0,
-        ha="center",
-        show_legend=False,
-    ):
-        x = np.arange(len(index_vals))
-        ci_hi_by_group = {}
-
-        for j, model in enumerate(["Baseline", "VIOLETS"]):
-            sub = groups_data[groups_data["model"] == model].set_index(label_col)
-            means = [
-                sub.loc[v, "mean"] if v in sub.index else np.nan for v in index_vals
-            ]
-            ci_lo = [
-                sub.loc[v, "ci_low"] if v in sub.index else np.nan for v in index_vals
-            ]
-            ci_hi = [
-                sub.loc[v, "ci_high"] if v in sub.index else np.nan for v in index_vals
-            ]
-            ax.bar(
-                x + j * BAR_W,
-                means,
-                BAR_W,
-                color=COLORS[model],
-                label=model,
-                yerr=[
-                    [m - lo for m, lo in zip(means, ci_lo)],
-                    [hi - m for m, hi in zip(means, ci_hi)],
-                ],
-                capsize=CAP,
-                error_kw=ERR_KW,
-                edgecolor="white",
-                linewidth=0.5,
-            )
-            for i, ci_top in enumerate(ci_hi):
-                ci_hi_by_group[i] = max(ci_hi_by_group.get(i, ymin), ci_top)
-
-        p_lookup = (
-            p_table.set_index(p_col)["p_value"] if p_col in p_table.columns else {}
-        )
-        for i, val in enumerate(index_vals):
-            p = p_lookup.get(val, np.nan) if hasattr(p_lookup, "get") else np.nan
-            _annotate_stars(
-                ax, x[i] + BAR_W / 2, ci_hi_by_group.get(i, ymin), _sig_stars(p)
-            )
-
-        ax.set_xticks(x + BAR_W / 2)
-        ax.set_xticklabels(x_labels, rotation=rotate, ha=ha, fontsize=FS["tick"])
-        ax.set_ylim(ymin, ymax + (ymax - ymin) * 0.10)
-        ax.yaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
+        for yi, hi_i, p in zip(y, hi, p_values):
+            stars = _sig_stars(p)
+            if stars != "ns":
+                ax.text(hi_i, yi, f"  {stars}", va="center", ha="left",
+                         fontsize=FS["stars"], color="#222222", fontweight="bold")
+        ax.set_yticks(y)
+        ax.set_yticklabels(labels, fontsize=FS["tick"])
+        ax.invert_yaxis()
+        ax.set_xlabel(xlabel, fontsize=FS["label"])
+        ax.xaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
         ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
-        if show_legend:
-            ax.legend(fontsize=FS["legend"], framealpha=0.7)
 
     # ── Panel A: Overall ──────────────────────────────────────────────────
-    ax = axes[0]
-    max_ci_top = ymin
-    for i, model in enumerate(["Baseline", "VIOLETS"]):
-        row = overall_desc.loc[model]
-        ax.bar(
-            i,
-            row["mean"],
-            BAR_W * 1.4,
-            color=COLORS[model],
-            label=model,
-            yerr=[[row["mean"] - row["ci_low"]], [row["ci_high"] - row["mean"]]],
-            capsize=CAP,
-            error_kw=ERR_KW,
-            edgecolor="white",
-            linewidth=0.5,
-        )
-        max_ci_top = max(max_ci_top, row["ci_high"])
-    _annotate_stars(ax, 0.5, max_ci_top, _sig_stars(table1["p_value"].iloc[0]))
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels(["Baseline", "VIOLETS"], fontsize=FS["tick"])
-    ax.set_title("(A) Overall", fontsize=FS["title"], fontweight="bold")
-    ax.set_ylabel(ylabel, fontsize=FS["label"])
-    ax.set_ylim(ymin, ymax + (ymax - ymin) * 0.10)
+    row = table1.iloc[0]
+    _forest_panel(
+        axes[0], ["Overall"], [row["estimate"]], [row["ci_low"]], [row["ci_high"]],
+        [row["p_value"]],
+    )
+    axes[0].set_title("(A) Overall", fontsize=FS["title"], fontweight="bold", loc="left")
+
+    # ── Panel B: By Category ──────────────────────────────────────────────
+    _forest_panel(
+        axes[1], cat_labels, cat2["estimate"].tolist(), cat2["ci_low"].tolist(),
+        cat2["ci_high"].tolist(), cat2["p_value"].tolist(),
+    )
+    axes[1].set_title(
+        "(B) By Threat Category", fontsize=FS["title"], fontweight="bold", loc="left"
+    )
+
+    fig.suptitle(title, fontsize=20, fontweight="bold", y=1.02)
+    fig.text(
+        0.5, -0.02,
+        "Points = mixed-model estimate of VIOLETS − Baseline, whiskers = 95% CI  |  "
+        "dashed line = no difference  |  * p < .05  ** p < .01  *** p < .001",
+        ha="center", fontsize=12, color="#555555",
+    )
+
+    plt.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def build_multi_judge_coefficient_figure(
+    df: pd.DataFrame,
+    judges: list[dict],
+    output_path: Path,
+    xlabel: str = "VIOLETS − Baseline (safety score)",
+    title: str = "RQ2: Safety — VIOLETS vs. Baseline, by judge model",
+) -> None:
+    """
+    Same two-panel coefficient (forest) plot as build_coefficient_figure, but
+    overlays one point+CI series per judge model instead of collapsing them
+    into a single average or majority vote. Disagreement between judges is
+    then visible directly (differently-colored points at different
+    positions, or on different sides of the zero line) rather than hidden
+    inside an aggregate.
+
+    `judges` is a list of dicts, each:
+        {"label": str, "color": str, "table1": DataFrame, "table2": DataFrame}
+    where table1/table2 are the outputs of build_table1_overall /
+    build_table2_category run with that judge's outcome column (e.g.
+    safety_score vs. safety_score_2nd).
+    """
+    FS = {"title": 20, "label": 16, "tick": 15, "legend": 13, "stars": 13}
+    CAP = 5
+    n_judges = len(judges)
+    # Small vertical offsets so overlapping judges' points/whiskers don't
+    # sit exactly on top of each other.
+    offsets = np.linspace(-0.16, 0.16, n_judges) if n_judges > 1 else [0.0]
+
+    categories = df["category"].cat.categories.tolist()
+    cat_labels = [_CAT_LABELS_RQ2.get(c, c).replace("\n", " ") for c in categories]
+
+    fig, axes = plt.subplots(
+        2, 1, figsize=(10, 7.5), gridspec_kw={"height_ratios": [1, len(categories)]}
+    )
+    fig.subplots_adjust(hspace=0.55, left=0.28)
+
+    def _forest_panel(ax, labels, judge_rows_list):
+        y_base = np.arange(len(labels))
+        ax.axvline(0, color="#999999", linewidth=1.2, linestyle="--", zorder=1)
+        for judge, offset, rows in zip(judges, offsets, judge_rows_list):
+            y = y_base + offset
+            est = rows["estimate"].tolist()
+            lo = rows["ci_low"].tolist()
+            hi = rows["ci_high"].tolist()
+            ax.errorbar(
+                est, y,
+                xerr=[np.array(est) - np.array(lo), np.array(hi) - np.array(est)],
+                fmt="o", color=judge["color"], markersize=7, capsize=CAP,
+                elinewidth=2.0, ecolor=judge["color"], capthick=2.0, zorder=3,
+                label=judge["label"],
+            )
+            for yi, hi_i, p in zip(y, hi, rows["p_value"].tolist()):
+                stars = _sig_stars(p)
+                if stars != "ns":
+                    ax.text(hi_i, yi, f"  {stars}", va="center", ha="left",
+                             fontsize=FS["stars"], color=judge["color"], fontweight="bold")
+        ax.set_yticks(y_base)
+        ax.set_yticklabels(labels, fontsize=FS["tick"])
+        ax.invert_yaxis()
+        ax.set_xlabel(xlabel, fontsize=FS["label"])
+        ax.xaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
+        ax.set_axisbelow(True)
+        ax.spines[["top", "right"]].set_visible(False)
+
+    # ── Panel A: Overall ──────────────────────────────────────────────────
+    _forest_panel(axes[0], ["Overall"], [j["table1"] for j in judges])
+    axes[0].set_title("(A) Overall", fontsize=FS["title"], fontweight="bold", loc="left")
+
+    # ── Panel B: By Category ──────────────────────────────────────────────
+    judge_cat_rows = [j["table2"].set_index("category").loc[categories] for j in judges]
+    _forest_panel(axes[1], cat_labels, judge_cat_rows)
+    axes[1].set_title(
+        "(B) By Threat Category", fontsize=FS["title"], fontweight="bold", loc="left"
+    )
+
+    # Figure-level legend (not tied to either axes) so it can't overlap the
+    # title text or the Panel A data points.
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, fontsize=FS["legend"], framealpha=0.9,
+               loc="upper center", bbox_to_anchor=(0.5, 1.06), ncol=n_judges)
+
+    fig.suptitle(title, fontsize=20, fontweight="bold", y=1.14)
+    fig.text(
+        0.5, -0.02,
+        "Points = mixed-model estimate of VIOLETS − Baseline per judge model, whiskers = 95% CI  |  "
+        "dashed line = no difference  |  * p < .05  ** p < .01  *** p < .001",
+        ha="center", fontsize=12, color="#555555",
+    )
+
+    plt.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def build_passfail_figure(
+    df: pd.DataFrame,
+    passfail_by_category: pd.DataFrame,
+    output_path: Path,
+    title: str = "RQ2: PASS / WARN / FAIL Rate by Threat Category",
+) -> None:
+    """
+    Supplementary stacked-bar panel: PASS/WARN/FAIL proportions per model
+    within each threat category. safety_score is a continuous number but it
+    is built from fixed categorical anchors (PASS/WARN/FAIL); a mean-based
+    coefficient plot can hide a genuinely alarming rate (e.g. a 75% FAIL
+    rate can still average out to a middling mean), so this panel shows the
+    underlying label distribution directly.
+    """
+    COLORS = {"PASS": "#4CAF50", "WARN": "#FFB300", "FAIL": "#D32F2F"}
+    HATCH = {"Baseline": "////", "VIOLETS": None}
+    FS = {"title": 18, "label": 15, "tick": 14, "legend": 12}
+    BAR_W = 0.38
+
+    categories = df["category"].cat.categories.tolist()
+    cat_labels = [_CAT_LABELS_RQ2.get(c, c).replace("\n", " ") for c in categories]
+    pf = passfail_by_category.set_index(["category", "model"])
+
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    x = np.arange(len(categories))
+
+    for j, model in enumerate(["Baseline", "VIOLETS"]):
+        bottoms = np.zeros(len(categories))
+        for label in ["PASS", "WARN", "FAIL"]:
+            rates = np.array([
+                pf.loc[(c, model), f"{label.lower()}_rate"]
+                if (c, model) in pf.index else np.nan
+                for c in categories
+            ])
+            ax.bar(
+                x + j * BAR_W, rates, BAR_W, bottom=bottoms,
+                color=COLORS[label], label=label if j == 0 else None,
+                hatch=HATCH[model], edgecolor="white", linewidth=0.5,
+            )
+            bottoms += np.nan_to_num(rates)
+
+    # Proxy legend entries for the Baseline/VIOLETS hatch pattern, shown
+    # alongside the PASS/WARN/FAIL color legend.
+    model_handles = [
+        plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor="black",
+                       hatch=HATCH["Baseline"], label="Baseline (hatched)"),
+        plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor="black",
+                       label="VIOLETS (solid)"),
+    ]
+
+    ax.set_xticks(x + BAR_W / 2)
+    ax.set_xticklabels(cat_labels, fontsize=FS["tick"])
+    ax.set_ylabel("Share of turns", fontsize=FS["label"])
+    ax.set_ylim(0, 1.0)
     ax.yaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
     ax.set_axisbelow(True)
     ax.spines[["top", "right"]].set_visible(False)
-
-    # ── Panel B: By Category ──────────────────────────────────────────────
-    categories = df["category"].cat.categories.tolist()
-    cat_labels = [_CAT_LABELS_RQ2.get(c, c) for c in categories]
-    _bar_group(
-        axes[1],
-        categories,
-        cat_desc,
-        "category",
-        cat_labels,
-        p_table=table2,
-        p_col="category",
-        rotate=20,
-        ha="right",
-        show_legend=True,
+    color_handles, color_labels = ax.get_legend_handles_labels()
+    ax.legend(
+        handles=color_handles + model_handles,
+        fontsize=FS["legend"], framealpha=0.9, loc="upper center",
+        bbox_to_anchor=(0.5, 1.16), ncol=5,
     )
-    axes[1].set_title("(B) By Threat Category", fontsize=FS["title"], fontweight="bold")
-
-    fig.suptitle(title, fontsize=20, fontweight="bold", y=1.03)
-    fig.text(
-        0.5,
-        -0.02,
-        "Bars = mean ± 95% CI  |  * p < .05  ** p < .01  *** p < .001"
-        "  |  p-values from linear mixed-effects model (random intercept per conversation)",
-        ha="center",
-        fontsize=12,
-        color="#555555",
-    )
+    ax.set_title(title, fontsize=FS["title"], fontweight="bold", y=1.14)
+    fig.subplots_adjust(bottom=0.15)
 
     plt.savefig(output_path, dpi=200, bbox_inches="tight")
     plt.close(fig)
@@ -1026,15 +1089,24 @@ def run_analysis(input_path: Path, output_dir: Path) -> None:
     )
 
     # ----------------------------------------------------------------------
-    # Primary figure
+    # Primary figure: coefficient plot (VIOLETS − Baseline, with 95% CI)
     # ----------------------------------------------------------------------
-    build_combined_figure(
+    build_coefficient_figure(
         df=df,
         table1=table1,
         table2=table2,
-        table3=table3,
         output_path=output_dir / "rq2_poster_figure.png",
     )
+
+    # ----------------------------------------------------------------------
+    # Supplementary figure: PASS/WARN/FAIL rate by category
+    # ----------------------------------------------------------------------
+    if not pf_cat.empty:
+        build_passfail_figure(
+            df=df,
+            passfail_by_category=pf_cat,
+            output_path=output_dir / "rq2_passfail_figure.png",
+        )
 
     print("RQ2 mixed-effects analysis complete.")
     print(f"Input:      {input_path}")
