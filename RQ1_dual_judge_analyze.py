@@ -9,10 +9,12 @@ raw score-distribution histogram across judges.
 
 Judges included:
   1. gpt-5-nano (primary), web search via OpenAI — `veracity_score` column,
-     already present in the --input file.
+     always present (this is the base eval_dataset the runner produces).
   2. deepseek-v4-flash (secondary), web search via Tavily —
-     `veracity_score_2nd` column, from rescore_secondary_rq1.py's
-     *_dual_judge.jsonl output (this is what --input should point at).
+     `veracity_score_2nd` column. Optional: only included if --input is
+     already a *_dual_judge.jsonl file (i.e. rescore_secondary_rq1.py was
+     run first) — if --input is the plain eval_dataset.jsonl, this judge
+     is silently skipped rather than erroring.
   3. deepseek-v4-flash (secondary, no search), pure parametric knowledge —
      `veracity_score_3rd` column, from rescore_secondary_rq1_notool.py's
      *_notool_judge.jsonl output. Optional: pass --notool_input, or leave
@@ -45,10 +47,8 @@ from RQ1_analyze import (
     build_dual_judge_score_distribution_figure,
 )
 
-BASE_JUDGES = [
-    {"label": "gpt-5-nano (primary)", "color": "#7B2FBE", "outcome": "veracity_score"},
-    {"label": "deepseek-v4-flash (secondary)", "color": "#E8871E", "outcome": "veracity_score_2nd"},
-]
+PRIMARY_JUDGE = {"label": "gpt-5-nano (primary)", "color": "#7B2FBE", "outcome": "veracity_score"}
+SEARCH_JUDGE = {"label": "deepseek-v4-flash (secondary)", "color": "#E8871E", "outcome": "veracity_score_2nd"}
 NOTOOL_JUDGE = {"label": "deepseek-v4-flash (no search)", "color": "#2E9E5B", "outcome": "veracity_score_3rd"}
 LLAMA_JUDGE = {"label": "llama-3.3-70b (no search)", "color": "#D6428C", "outcome": "veracity_score_4th"}
 
@@ -82,9 +82,14 @@ def run(input_path: Path, output_dir: Path, notool_input: Path | None, llama_inp
 
     df = load_jsonl(input_path)
     df = preprocess(df)
-    df["veracity_score_2nd"] = pd.to_numeric(df["veracity_score_2nd"], errors="coerce")
 
-    all_judges = list(BASE_JUDGES)
+    all_judges = [PRIMARY_JUDGE]
+
+    if "veracity_score_2nd" in df.columns:
+        df["veracity_score_2nd"] = pd.to_numeric(df["veracity_score_2nd"], errors="coerce")
+        all_judges.append(SEARCH_JUDGE)
+    else:
+        print(f"No 'veracity_score_2nd' column in {input_path} — skipping search-based secondary judge")
 
     notool_path = notool_input or _default_notool_path(input_path)
     if notool_path.exists():

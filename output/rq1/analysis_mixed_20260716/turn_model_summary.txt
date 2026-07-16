@@ -1,0 +1,21 @@
+                                                   Mixed Linear Model Regression Results
+============================================================================================================================================
+Model:                                        MixedLM                           Dependent Variable:                           veracity_score
+No. Observations:                             240                               Method:                                       ML            
+No. Groups:                                   30                                Scale:                                        303.4456      
+Min. group size:                              8                                 Log-Likelihood:                               -1031.0876    
+Max. group size:                              8                                 Converged:                                    Yes           
+Mean group size:                              8.0                                                                                           
+--------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                 Coef.  Std.Err.   z    P>|z|  [0.025 0.975]
+--------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                                        78.867    3.253 24.244 0.000  72.491 85.242
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]                                              8.267    4.498  1.838 0.066  -0.549 17.082
+C(turn_str, Treatment(reference='0'))[T.1]                                                       -7.867    4.498 -1.749 0.080 -16.682  0.949
+C(turn_str, Treatment(reference='0'))[T.2]                                                       -3.567    4.498 -0.793 0.428 -12.382  5.249
+C(turn_str, Treatment(reference='0'))[T.3]                                                      -16.867    4.498 -3.750 0.000 -25.682 -8.051
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.1]   3.567    6.361  0.561 0.575  -8.900 16.034
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.2]   3.467    6.361  0.545 0.586  -9.000 15.934
+C(model, Treatment(reference='Baseline'))[T.VIOLETS]:C(turn_str, Treatment(reference='0'))[T.3]  11.867    6.361  1.866 0.062  -0.600 24.334
+Group Var                                                                                        14.020    0.823                            
+============================================================================================================================================

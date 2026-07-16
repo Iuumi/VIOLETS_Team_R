@@ -1,0 +1,6 @@
+category,pct_cited,pct_accessible,pct_accurate,n_turns,n_turns_cited,n_urls_total,n_urls_accessible,n_urls_accurate
+procedural,100.0,95.1,87.8,24,24,41,39,36
+eligibility,95.8,91.7,93.8,24,23,48,44,45
+mail_in,100.0,90.2,84.3,24,24,51,46,43
+results_integrity,100.0,87.2,76.9,24,24,39,34,30
+edge_cases,95.8,100.0,97.1,24,23,34,34,33
