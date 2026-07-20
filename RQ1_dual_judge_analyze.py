@@ -48,9 +48,17 @@ from RQ1_analyze import (
 )
 
 PRIMARY_JUDGE = {"label": "gpt-5-nano (primary)", "color": "#7B2FBE", "outcome": "veracity_score"}
+# deepseek-v4-flash is orange everywhere (RQ2's deepseek is always orange too,
+# since it never needs search) so the same model reads as the same color
+# across RQ1/RQ2/RQ3 posters. NOTOOL_JUDGE only gets its own distinct shade
+# if SEARCH_JUDGE is *also* present in the same figure (both variants shown
+# together) — see NOTOOL_JUDGE below.
 SEARCH_JUDGE = {"label": "deepseek-v4-flash (secondary)", "color": "#E8871E", "outcome": "veracity_score_2nd"}
-NOTOOL_JUDGE = {"label": "deepseek-v4-flash (no search)", "color": "#2E9E5B", "outcome": "veracity_score_3rd"}
+NOTOOL_JUDGE = {"label": "deepseek-v4-flash (no search)", "color": "#E8871E", "outcome": "veracity_score_3rd"}
 LLAMA_JUDGE = {"label": "llama-3.3-70b (no search)", "color": "#D6428C", "outcome": "veracity_score_4th"}
+# Fallback color if a run ever needs both SEARCH_JUDGE and NOTOOL_JUDGE in
+# the same figure at once — they'd otherwise be indistinguishable.
+_NOTOOL_FALLBACK_COLOR = "#2E9E5B"
 
 
 def _default_notool_path(input_path: Path) -> Path:
@@ -77,7 +85,10 @@ def _merge_extra_judge(df: pd.DataFrame, path: Path, judge: dict) -> pd.DataFram
     return df
 
 
-def run(input_path: Path, output_dir: Path, notool_input: Path | None, llama_input: Path | None) -> None:
+def run(
+    input_path: Path, output_dir: Path, notool_input: Path | None, llama_input: Path | None,
+    poster: bool = False,
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_jsonl(input_path)
@@ -94,7 +105,12 @@ def run(input_path: Path, output_dir: Path, notool_input: Path | None, llama_inp
     notool_path = notool_input or _default_notool_path(input_path)
     if notool_path.exists():
         df = _merge_extra_judge(df, notool_path, NOTOOL_JUDGE)
-        all_judges.append(NOTOOL_JUDGE)
+        notool_judge = NOTOOL_JUDGE
+        if SEARCH_JUDGE in all_judges:
+            # Both deepseek variants in the same figure — they'd otherwise
+            # share the same orange and be indistinguishable.
+            notool_judge = {**NOTOOL_JUDGE, "color": _NOTOOL_FALLBACK_COLOR}
+        all_judges.append(notool_judge)
     else:
         print(f"No no-search judge file found at {notool_path} — skipping")
 
@@ -119,6 +135,13 @@ def run(input_path: Path, output_dir: Path, notool_input: Path | None, llama_inp
         judges=judges,
         output_path=output_dir / "rq1_dual_judge_figure.png",
     )
+    if poster:
+        build_multi_judge_coefficient_figure(
+            df=df,
+            judges=judges,
+            output_path=output_dir / "rq1_dual_judge_figure_poster.png",
+            poster=True,
+        )
 
     dist_table = build_dual_judge_score_distribution(df, all_judges)
     dist_table.to_csv(output_dir / "rq1_dual_judge_score_distribution.csv", index=False)
@@ -137,9 +160,11 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--notool_input", type=str, default=None, help="Path to *_notool_judge.jsonl (optional 3rd judge, deepseek no-search). Auto-derived from --input if omitted.")
     parser.add_argument("--llama_input", type=str, default=None, help="Path to *_notool_judge_llama-33-70b-instruct.jsonl (optional 4th judge, llama no-search). Auto-derived from --input if omitted.")
+    parser.add_argument("--poster", action="store_true", help="Also write an 8-inch-wide poster version (no title/caption, larger fonts, shared x-axis, faded non-significant points).")
     args = parser.parse_args()
     run(
         Path(args.input), Path(args.output_dir),
         Path(args.notool_input) if args.notool_input else None,
         Path(args.llama_input) if args.llama_input else None,
+        args.poster,
     )

@@ -34,7 +34,7 @@ EMBEDDINGS = [
 ]
 
 
-def run(input_path: Path, output_dir: Path) -> None:
+def run(input_path: Path, output_dir: Path, poster: bool = False) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_jsonl(input_path)
@@ -55,6 +55,13 @@ def run(input_path: Path, output_dir: Path) -> None:
         embeddings=embeddings,
         output_path=output_dir / "rq3_dual_embedding_figure.png",
     )
+    if poster:
+        build_multi_embedding_coefficient_figure(
+            df=df,
+            embeddings=embeddings,
+            output_path=output_dir / "rq3_dual_embedding_figure_poster.png",
+            poster=True,
+        )
     print(f"Dual-embedding figure + tables written to {output_dir}")
 
 
@@ -62,5 +69,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
+    parser.add_argument("--poster", action="store_true", help="Also write an 8-inch-wide poster version (no title/caption, larger fonts, shared x-axis, faded non-significant points).")
     args = parser.parse_args()
-    run(Path(args.input), Path(args.output_dir))
+    run(Path(args.input), Path(args.output_dir), args.poster)

@@ -61,7 +61,7 @@ def _merge_extra_judge(df: pd.DataFrame, path: Path, judge: dict) -> pd.DataFram
     return df
 
 
-def run(input_path: Path, output_dir: Path, llama_input: Path | None) -> None:
+def run(input_path: Path, output_dir: Path, llama_input: Path | None, poster: bool = False) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_jsonl(input_path)
@@ -91,6 +91,13 @@ def run(input_path: Path, output_dir: Path, llama_input: Path | None) -> None:
         judges=judges,
         output_path=output_dir / "rq2_dual_judge_figure.png",
     )
+    if poster:
+        build_multi_judge_coefficient_figure(
+            df=df,
+            judges=judges,
+            output_path=output_dir / "rq2_dual_judge_figure_poster.png",
+            poster=True,
+        )
     print(f"Figure + tables ({len(all_judges)} judges) written to {output_dir}")
 
 
@@ -99,5 +106,6 @@ if __name__ == "__main__":
     parser.add_argument("--input", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--llama_input", type=str, default=None, help="Path to *_dual_judge_llama-33-70b-instruct.jsonl (optional 3rd judge). Auto-derived from --input if omitted.")
+    parser.add_argument("--poster", action="store_true", help="Also write an 8-inch-wide poster version (no title/caption, larger fonts, shared x-axis, faded non-significant points).")
     args = parser.parse_args()
-    run(Path(args.input), Path(args.output_dir), Path(args.llama_input) if args.llama_input else None)
+    run(Path(args.input), Path(args.output_dir), Path(args.llama_input) if args.llama_input else None, args.poster)

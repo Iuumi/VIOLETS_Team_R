@@ -781,6 +781,7 @@ def build_multi_judge_coefficient_figure(
     output_path: Path,
     xlabel: str = "VIOLETS − Baseline (veracity points)",
     title: str = "RQ1: Veracity — VIOLETS vs. Baseline, by judge model",
+    poster: bool = False,
 ) -> None:
     """
     Same two-panel coefficient (forest) plot as build_coefficient_figure, but
@@ -795,36 +796,99 @@ def build_multi_judge_coefficient_figure(
     where table1/table2 are the outputs of build_table1_overall /
     build_table2_category run with that judge's outcome column (e.g.
     veracity_score vs. veracity_score_2nd).
+
+    `poster=True` renders at a fixed 8-inch width for a 3-panels-across
+    poster row: no suptitle/caption (those go in the poster's own text
+    boxes instead), larger content fonts, no redundant xlabel on panel A,
+    a shared x-axis range across both panels, and a heavier zero-line.
     """
-    FS = {"title": 20, "label": 16, "tick": 15, "legend": 13, "stars": 13}
-    CAP = 5
     n_judges = len(judges)
-    offsets = np.linspace(-0.16, 0.16, n_judges) if n_judges > 1 else [0.0]
+    if poster:
+        FS = {"title": 22, "subtitle": 17, "label": 20, "tick": 18, "legend": 16, "stars": 19}
+        CAP, MARKER, LW = 8, 12, 3.0
+        figsize = (8, 7.2)
+        left_margin = 0.32
+        top_margin, bottom_margin = 0.85, 0.13
+        hspace = 0.48
+        zero_lw, zero_dashes = 2.2, (6, 5)
+        offset_span = 0.12
+    else:
+        FS = {"title": 20, "label": 16, "tick": 15, "legend": 13, "stars": 13}
+        CAP, MARKER, LW = 5, 7, 2.0
+        figsize = (10, 7.5)
+        left_margin = 0.28
+        top_margin, bottom_margin = None, None
+        hspace = 0.55
+        zero_lw, zero_dashes = 1.2, (4, 3)
+        offset_span = 0.16
+    offsets = np.linspace(-offset_span, offset_span, n_judges) if n_judges > 1 else [0.0]
 
     categories = df["category"].cat.categories.tolist()
     cat_labels = [_CAT_LABELS_RQ1.get(c, c).replace("\n", " ") for c in categories]
 
+    # Panel A holds n_judges offset points on a single row, same as any one
+    # row of panel B — poster mode drops panel A's title (see below), and
+    # without a bigger height_ratio that freed space would just become
+    # blank margin instead of actually giving panel A's whiskers more room.
+    panel_a_ratio = 2 if poster else 1
     fig, axes = plt.subplots(
-        2, 1, figsize=(10, 7.5), gridspec_kw={"height_ratios": [1, len(categories)]}
+        2, 1, figsize=figsize, gridspec_kw={"height_ratios": [panel_a_ratio, len(categories)]}
     )
-    fig.subplots_adjust(hspace=0.55, left=0.28)
+    adjust_kwargs = {"hspace": hspace, "left": left_margin}
+    if poster:
+        adjust_kwargs.update(top=top_margin, bottom=bottom_margin)
+    fig.subplots_adjust(**adjust_kwargs)
 
-    def _forest_panel(ax, labels, judge_rows_list):
+    # Shared x-axis range across both panels (poster only) so the same
+    # veracity-point scale reads directly across (A) and (B) — computed
+    # from every judge's CI bounds in both tables, with a small pad so no
+    # whisker or star annotation touches the very edge.
+    shared_xlim = None
+    if poster:
+        bounds = []
+        for j in judges:
+            bounds += j["table1"]["ci_low"].tolist() + j["table1"]["ci_high"].tolist()
+            bounds += j["table2"]["ci_low"].tolist() + j["table2"]["ci_high"].tolist()
+        xmin, xmax = min(bounds), max(bounds)
+        pad = (xmax - xmin) * 0.12
+        shared_xlim = (xmin - pad, xmax + pad)
+
+    def _forest_panel(ax, labels, judge_rows_list, show_xlabel):
         y_base = np.arange(len(labels))
-        ax.axvline(0, color="#999999", linewidth=1.2, linestyle="--", zorder=1)
+        ax.axvline(0, color="#666666", linewidth=zero_lw, dashes=zero_dashes, zorder=1)
         for judge, offset, rows in zip(judges, offsets, judge_rows_list):
             y = y_base + offset
             est = rows["estimate"].tolist()
             lo = rows["ci_low"].tolist()
             hi = rows["ci_high"].tolist()
-            ax.errorbar(
-                est, y,
-                xerr=[np.array(est) - np.array(lo), np.array(hi) - np.array(est)],
-                fmt="o", color=judge["color"], markersize=7, capsize=CAP,
-                elinewidth=2.0, ecolor=judge["color"], capthick=2.0, zorder=3,
-                label=judge["label"],
-            )
-            for yi, hi_i, p in zip(y, hi, rows["p_value"].tolist()):
+            p_values = rows["p_value"].tolist()
+            if poster:
+                # Non-significant points/whiskers fade out so the
+                # significant ones read at a glance without needing to
+                # check every star annotation individually.
+                for est_i, lo_i, hi_i, y_i, p in zip(est, lo, hi, y, p_values):
+                    faded = _sig_stars(p) == "ns"
+                    ax.errorbar(
+                        [est_i], [y_i],
+                        xerr=[[est_i - lo_i], [hi_i - est_i]],
+                        fmt="o", color=judge["color"], markersize=MARKER, capsize=CAP,
+                        elinewidth=LW, ecolor=judge["color"], capthick=LW, zorder=3,
+                        alpha=0.35 if faded else 1.0,
+                    )
+                # Invisible full-series artist purely to give the legend one
+                # correctly-labeled, full-opacity handle per judge.
+                ax.errorbar([], [], fmt="o", color=judge["color"], markersize=MARKER,
+                            elinewidth=LW, ecolor=judge["color"], capthick=LW,
+                            label=judge["label"])
+            else:
+                ax.errorbar(
+                    est, y,
+                    xerr=[np.array(est) - np.array(lo), np.array(hi) - np.array(est)],
+                    fmt="o", color=judge["color"], markersize=MARKER, capsize=CAP,
+                    elinewidth=LW, ecolor=judge["color"], capthick=LW, zorder=3,
+                    label=judge["label"],
+                )
+            for yi, hi_i, p in zip(y, hi, p_values):
                 stars = _sig_stars(p)
                 if stars != "ns":
                     ax.text(hi_i, yi, f"  {stars}", va="center", ha="left",
@@ -832,37 +896,65 @@ def build_multi_judge_coefficient_figure(
         ax.set_yticks(y_base)
         ax.set_yticklabels(labels, fontsize=FS["tick"])
         ax.invert_yaxis()
-        ax.set_xlabel(xlabel, fontsize=FS["label"])
+        if show_xlabel:
+            ax.set_xlabel(xlabel, fontsize=FS["label"])
+        if poster:
+            ax.tick_params(axis="x", labelsize=FS["tick"])
+            ax.set_xlim(shared_xlim)
+            # Explicit margin instead of relying on autoscale's default 5%:
+            # panel A's y-range is only ~2*offset_span wide (a single row of
+            # offset points), so a data-range-relative margin is too thin in
+            # absolute terms to keep the outermost marker/whisker cap from
+            # visually touching the panel edge — an absolute pad fixes that
+            # regardless of how narrow the panel's own data range is.
+            ax.set_ylim(y_base.max() + 0.4, y_base.min() - 0.4)
         ax.xaxis.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
         ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
 
     # ── Panel A: Overall ──────────────────────────────────────────────────
-    _forest_panel(axes[0], ["Overall"], [j["table1"] for j in judges])
-    axes[0].set_title("(A) Overall", fontsize=FS["title"], fontweight="bold", loc="left")
+    _forest_panel(axes[0], ["Overall"], [j["table1"] for j in judges], show_xlabel=not poster)
+    if not poster:
+        axes[0].set_title("(A) Overall", fontsize=FS["title"], fontweight="bold", loc="left")
 
     # ── Panel B: By Category ──────────────────────────────────────────────
     judge_cat_rows = [j["table2"].set_index("category").loc[categories] for j in judges]
-    _forest_panel(axes[1], cat_labels, judge_cat_rows)
-    axes[1].set_title(
-        "(B) By Question Category", fontsize=FS["title"], fontweight="bold", loc="left"
-    )
+    _forest_panel(axes[1], cat_labels, judge_cat_rows, show_xlabel=True)
+    if poster:
+        # No "(A)"/"(B)" panel lettering — panel A's single "Overall" row is
+        # self-explanatory, and panel B keeps only a small, unobtrusive
+        # group label instead of a bold title, freeing vertical space.
+        axes[1].set_title("By Question Category", fontsize=FS["subtitle"], loc="left", color="#444444")
+    else:
+        axes[1].set_title(
+            "(B) By Question Category", fontsize=FS["title"], fontweight="bold", loc="left"
+        )
 
-    # Figure-level legend (not tied to either axes) so it can't overlap the
-    # title text or the Panel A data points.
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, fontsize=FS["legend"], framealpha=0.9,
-               loc="upper center", bbox_to_anchor=(0.5, 1.06), ncol=n_judges)
-
-    fig.suptitle(title, fontsize=20, fontweight="bold", y=1.14)
-    fig.text(
-        0.5, -0.02,
-        "Points = mixed-model estimate of VIOLETS − Baseline per judge model, whiskers = 95% CI  |  "
-        "dashed line = no difference  |  * p < .05  ** p < .01  *** p < .001",
-        ha="center", fontsize=12, color="#555555",
-    )
-
-    plt.savefig(output_path, dpi=200, bbox_inches="tight")
+    if poster:
+        # Legend sits inside the reserved top_margin band (y < 1.0) so it's
+        # captured by the fixed-figsize save below — the screen-mode
+        # y=1.06 position only works because bbox_inches="tight" expands
+        # the canvas to include it. Labels are shortened to just the model
+        # name — at 8 inches wide, the full "(primary)"/"(no search)" role
+        # suffixes don't fit on one row, and that role context belongs in
+        # the poster's own text box now that the caption is gone anyway.
+        short_labels = [lab.split(" (")[0] for lab in labels]
+        fig.legend(handles, short_labels, fontsize=FS["legend"], framealpha=0.9,
+                   loc="upper center", bbox_to_anchor=(0.5, 0.985), ncol=n_judges,
+                   handletextpad=0.5, columnspacing=1.2)
+        plt.savefig(output_path, dpi=300)
+    else:
+        fig.legend(handles, labels, fontsize=FS["legend"], framealpha=0.9,
+                   loc="upper center", bbox_to_anchor=(0.5, 1.06), ncol=n_judges)
+        fig.suptitle(title, fontsize=20, fontweight="bold", y=1.14)
+        fig.text(
+            0.5, -0.02,
+            "Points = mixed-model estimate of VIOLETS − Baseline per judge model, whiskers = 95% CI  |  "
+            "dashed line = no difference  |  * p < .05  ** p < .01  *** p < .001",
+            ha="center", fontsize=12, color="#555555",
+        )
+        plt.savefig(output_path, dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
